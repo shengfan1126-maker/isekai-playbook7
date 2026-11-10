@@ -5,20 +5,23 @@
 <meta name="color-scheme" content="light">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>孤獨異世界・365 天</title>
-<link rel="stylesheet" href="style.css?v=0.1">
+<link rel="stylesheet" href="style.css?v=0.2">
 </head>
 <body>
 <div class="app">
-  <div class="hd"><h1>孤獨異世界・365 天</h1><span class="sub">v0.1</span>
-    <button id="bset" class="gear">⚙</button></div>
+  <div class="hd"><h1>孤獨異世界・365 天</h1><span class="sub">v0.2</span>
+    <button id="bset" class="gear" aria-label="設定">⚙</button></div>
   <div id="status"></div>
   <div id="panel"></div>
+  <div id="say"></div>
   <div id="menu"></div>
   <div id="logbox"></div>
-  <footer>數值與判定由程式計算；故事（若有填金鑰）由模型潤飾。</footer>
+  <footer>數值、判定、打勾都由程式計算；AI 只負責聽懂你的話和寫故事。</footer>
 </div>
 <div class="sheet" id="sheet"><div class="sbox" id="sbody"></div></div>
-<script src="game.js?v=0.1"></script>
-<script src="ui.js?v=0.1"></script>
+<script src="data.js?v=0.2"></script>
+<script src="game.js?v=0.2"></script>
+<script src="ai.js?v=0.2"></script>
+<script src="ui.js?v=0.2"></script>
 </body>
 </html>
