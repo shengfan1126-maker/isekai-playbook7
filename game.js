@@ -58,6 +58,15 @@ function newGame(){
   log(`你的技能：${sk.map(s=>`【${s.n}】${s.d}`).join(" ")}`);
   return S;
 }
+/* 開局換技能：第 1 天還沒做任何事之前，可以一直換 */
+function canReroll(){return S.day===1&&!Object.keys(S.stats.actions).length&&!S.frags.length&&!S.seen.length}
+function rerollStart(i){
+  if(!canReroll()||!S.skills[i])return;
+  const pool=START_POOL.filter(t=>!S.skills.some(s=>s.n===t.n));
+  S.skills[i]=mkSkill(pick(pool),"F");
+  const l=S.log.find(x=>x.t.startsWith("你的技能："));
+  if(l)l.t=`你的技能：${S.skills.map(s=>`【${s.n}】${s.d}`).join(" ")}`;
+}
 function mkSkill(t,lv){return {n:t.n,e:t.e.slice(),c:t.c.slice(),lv:lv||"F",used:0,today:0,d:t.d||""}}
 function learnSkill(t,lv){
   if(owned(t.n))return "已經會了";

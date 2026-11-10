@@ -69,6 +69,10 @@ function renderPanel(){
   if(S.enc&&!draft){P.innerHTML=h+`<div class="box enc"><b>遭遇：${esc(S.enc.n)}（${S.enc.lv} 級）</b>　你是 ${S.lv} 級。<br><span class="note">牠會「${esc(S.enc.t.n)}」。打、用組合、或撤退（撤退也要付代價，例如丟下東西）。也可以直接在上面打字說你要怎麼做。</span>
     <div class="row2"><button id="ef">戰鬥</button><button id="ec">組合</button><button id="er">撤退</button></div></div>`;
     $("ef").onclick=()=>openDraft({act:"fight"});$("ec").onclick=()=>openDraft({act:"combo",obj:{t:"enemy",n:S.enc.n}});$("er").onclick=()=>openDraft({act:"retreat"});return}
+  if(!draft&&canReroll()){
+    P.innerHTML=h+`<div class="box"><b>開局技能</b>　不喜歡就換，換到喜歡為止。做第一件事之後就不能換了。`+
+      S.skills.map((s,i)=>`<div class="rr"><span><b>${esc(s.n)}</b> <small>${esc(s.c.join("・"))}｜${esc(s.e.join("・"))}</small><br><span class="note">${esc(s.d)}</span></span><button data-rr="${i}">換 ${i+1}</button></div>`).join("")+`</div>`;
+    P.querySelectorAll("[data-rr]").forEach(b=>b.onclick=()=>{rerollStart(+b.dataset.rr);refresh()});return}
   if(!draft){P.innerHTML=h;return}
   const d=draft,it=d.it,q=planOf(it);d.q=q;
   const sel=(id,opts,val)=>`<select id="${id}">${opts.map(([v,t])=>`<option value="${esc(v)}" ${v===val?"selected":""}>${esc(t)}</option>`).join("")}</select>`;
