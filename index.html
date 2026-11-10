@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>權能進化・魔物篇</title>
+<link rel="stylesheet" href="style.css?v=0.45">
+</head>
+<body>
+<div class="app">
+  <div class="hd">
+    <h1>權能進化・魔物篇</h1><span class="sub">v0.45</span>
+    <button class="gear" id="help" aria-label="新手教學" style="margin-left:auto;font-size:17px;font-weight:700">？</button>
+    <button class="gear" id="gear" aria-label="設定" style="margin-left:10px">⚙</button>
+  </div>
+  <div id="main"></div>
+  <footer>規則與數值由程序管理，故事由你選的模型撰寫。<br>部分抽籤表來自《地城世界》（CC BY 3.0）與《危險荒野》（CC BY-SA 3.0）。</footer>
+</div>
+
+<div class="sheet" id="gsheet">
+  <div class="sbox">
+    <h3>新手教學</h3>
+    <div id="gbody"></div>
+    <button class="close" id="gdone">知道了</button>
+  </div>
+</div>
+<button class="totop" id="totop" hidden aria-label="回到頁首">↑</button>
+<button class="totop tobot" id="tobot" hidden aria-label="跳到最新">↓</button>
+<div class="sheet" id="sheet">
+  <div class="sbox">
+    <h3>設定</h3>
+    <div class="note">金鑰只留在這台裝置的瀏覽器裡。純前端網頁藏不住金鑰，填好的檔案別傳給別人。</div>
+    <label>用哪一家</label>
+    <div class="mseg" id="pseg"><button data-p="both">Gemini＋OpenRouter</button><button data-p="gemini">Gemini</button><button data-p="or">OpenRouter 免費</button></div>
+    <div id="gembox">
+      <label>Gemini API Key</label>
+      <input type="password" id="gkey" placeholder="AIza…" autocomplete="off">
+      <div class="note" id="geminfo"></div>
+      <button class="pick" id="regem">重新抓 Gemini 模型名單</button>
+    </div>
+    <div id="orbox">
+    <label>OpenRouter API Key</label>
+    <input type="password" id="key" placeholder="sk-or-v1-…" autocomplete="off">
+    <label>模型</label>
+    <div class="mseg" id="mseg"><button data-m="auto">自動挑免費的</button><button data-m="list">自己排免費清單</button></div>
+    <div id="autobox">
+      <div class="note" id="autoinfo"></div>
+      <button class="pick" id="refree">重新抓免費模型名單</button>
+    </div>
+    <div id="listbox">
+      <textarea id="model" rows="3" spellcheck="false"></textarea>
+      <div class="note">一行一個，從上往下試。只會送給免費模型，清單裡的付費模型會被跳過、不會送出。</div>
+      <button class="pick" id="pick">列出現在免費的模型</button>
+      <div id="freelist"></div>
+    </div>
+    </div>
+
+    <h4>存檔</h4>
+    <div class="note">遊戲每回合自動存在這個瀏覽器。換手機、換瀏覽器、清除瀏覽資料之前，先匯出存檔。</div>
+    <div class="btnrow">
+      <button id="exp">匯出存檔</button>
+      <button id="imp">匯入存檔</button>
+    </div>
+    <div class="btnrow"><button id="expst">匯出故事（純文字）</button></div>
+    <div class="btnrow"><button class="danger" id="newg">重新開始</button></div>
+    <div class="note" id="snote" style="margin-top:8px"></div>
+    <input type="file" id="impfile" accept=".json,application/json" hidden>
+    <button class="close" id="done">完成</button>
+  </div>
+</div>
+
+<script src="data.js?v=0.45"></script>
+<script src="sys_prompt.js?v=0.45"></script>
+<script src="ai.js?v=0.45"></script>
+<script src="rules.js?v=0.45"></script>
+<script src="nest.js?v=0.45"></script>
+<script src="turn.js?v=0.45"></script>
+<script src="actions.js?v=0.45"></script>
+<script src="ui.js?v=0.45"></script>
+<script src="save.js?v=0.45"></script>
+</body>
+</html>
