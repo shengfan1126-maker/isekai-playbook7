@@ -5,8 +5,9 @@
 const fs=require("fs"),vm=require("vm");
 const ctx=vm.createContext({console,Math});
 vm.runInContext(["data.js","game.js"].map(f=>fs.readFileSync(__dirname+"/"+f,"utf8")).join("\n")+
-  "\nthis.G={newGame,planOf,exec,sleep,startCh2,failChoice,get S(){return S},hpMax,placeOf,gIdx,canExchange,drawChoices,exchange,RECIPES,MOVES,PLACES,canBuild,build,canEvolve,evolve,usePotion,bpOf,hasItem,MP_MAX,pickFac,facPut,startBoss,donate,donateItem,FAC,GRADES,facBlock};",ctx);
+  "\nthis.G={newGame,planOf,exec,sleep,startCh2,failChoice,get S(){return S},hpMax,placeOf,gIdx,canExchange,drawChoices,exchange,RECIPES,MOVES,PLACES,canBuild,build,canEvolve,evolve,usePotion,bpOf,hasItem,MP_MAX,mpMax,makeCure,useCure,pickFac,facPut,startBoss,donate,donateItem,FAC,GRADES,facBlock};",ctx);
 const G=ctx.G;
+if(process.env.DIS)vm.runInContext(`Object.assign(ARMY_DIS,${process.env.DIS})`,ctx);
 const SHESH=process.argv.includes("shesh"),DBG=process.argv.includes("dbg");
 let dbgOn=false;
 function pay(q,want){const p={hp:0,mp:0,time:0,item:0};let n=want;for(const k of ["time","item","mp","hp"]){const t=Math.min(n,q.caps[k]);p[k]=t;n-=t}return p}
@@ -29,10 +30,12 @@ function raidBattle(){
     if(S.hp-p.hp*q.unit>0){W.paid++;return G.exec(q,p)}
   }
   if(!lastChance&&safeHp>0){W.takeLoss++;return G.exec(q,{})}      // 這場認輸，留著資源
-  if((SHESH||R.kind==="boss")&&!R.shesh){W.shesh++;return G.exec(q,{shesh:true})}
+  if((SHESH||R.kind==="boss")&&!R.shesh){W.shesh++;return G.exec(q,{shesh:sheshPart()})}
   if(R.kind==="boss"){W.takeLoss++;return G.exec(q,{})}
   W.flee++;return act({act:"retreat"},null);
 }
+const PART_PREF=["眼睛","腿","單手","心靈","身體"];
+function sheshPart(){const S=G.S;return PART_PREF.find(p=>!S.scars.includes(p))||"眼睛"}
 function goGather(mat){
   const S=G.S;
   const best=S.places.map(G.placeOf).filter(p=>p.res.includes(mat)).sort((a,b)=>b.res.filter(x=>x===mat).length-a.res.filter(x=>x===mat).length)[0];
@@ -54,11 +57,11 @@ function baseChores(){
     if(m&&S.skills.length>3){G.facPut(fi,m.i);return true}
   }
   let did=false;
-  for(const m of Object.keys(S.mats)){const n=(S.mats[m]||0)-(KEEP[m]||0);if(n>0){G.donate(m,n);did=true}}
+  for(const m of Object.keys(S.mats)){const n=(S.mats[m]||0)-(KEEP[m]||0)-(S.nest==="S"&&S.scars.length&&(m==="魔核"||m==="草")?5:0);if(n>0){G.donate(m,n);did=true}}
   const ti=S.items.findIndex(i=>i.k==="tool"&&i.n!=="背包");if(ti>=0){G.donateItem(ti);did=true}
   return did;
 }
-function readyToBuild(){const S=G.S;return S.hp>=G.hpMax()*.9&&S.mp>=G.MP_MAX-1&&S.hour<=9&&S.items.filter(i=>i.k==="white").length>=2&&G.hasItem("potion")}
+function readyToBuild(){const S=G.S;return S.hp>=G.hpMax()*.9&&S.mp>=G.mpMax()-1&&S.hour<=9&&S.items.filter(i=>i.k==="white").length>=2&&G.hasItem("potion")}
 function play(idx){
   G.newGame();const S=G.S;let guard=0;dbgOn=idx===0;
   while(!S.over&&guard++<60000){
@@ -82,6 +85,8 @@ function play(idx){
       if(!S.needs.食物){if(Math.random()<.4)act({act:"hunt"});else goGather("野果");continue}
     }
     if(S.ch===2&&baseChores())continue;
+    if(S.nest==="S"&&S.scars.length){if(S.items.some(i=>i.k==="cure")){G.useCure(S.scars[S.scars.length-1]);continue}
+      if((S.mats.魔核||0)>=5&&(S.mats.草||0)>=5&&!G.makeCure().err)continue;}
     if(Math.random()<.15&&S.mp>=3){const sk=S.skills.filter(s=>s.today<3);if(sk.length){
       const k=Math.min(sk.length,1+Math.floor(Math.random()*2));const ss=sk.slice(0,k).map(s=>s.n);
       const objs=[{t:"place",n:S.at},...S.seen.filter(x=>!x.used).map(x=>({t:"seen",n:x.n}))];
@@ -113,5 +118,7 @@ console.log("自己升級（中位數天數）："+["E","D","C","B","A","S"].map
 console.log("據點第一次到（中位數天數）："+["E","D","C","B","A","S"].map(g=>{const a=rows.map(s=>s.stats.nestDay[g]).filter(x=>x!=null);return `${g} ${a.length}局 第${med(a)}天`}).join("｜"));
 const R=rows.flatMap(s=>s.stats.raids);
 console.log("升級戰（升到哪一級：守住/攻破/逃）："+["E","D","C","B","A","S","boss"].map(k=>{const a=R.filter(r=>r.lv===k);const c=x=>a.filter(r=>r.res===x).length;return `${k} ${c("ok")}/${c("fail")}/${c("retreat")}`}).join("｜"));
+console.log("第一次就守住："+["E","D","C","B","A","S","boss"].map(k=>{const f=rows.map(s=>s.stats.raids.find(r=>r.lv===k)).filter(Boolean);return `${k} ${f.length?Math.round(100*f.filter(r=>r.res==="ok").length/f.length):"-"}%（${f.length}）`}).join("｜"));
 console.log("最後據點：",JSON.stringify(rows.reduce((o,s)=>(o[s.nest]=(o[s.nest]||0)+1,o),{})),"；最後等級：",JSON.stringify(rows.reduce((o,s)=>(o[s.lv]=(o[s.lv]||0)+1,o),{})),"；傷殘中位數",med(rows.map(s=>s.scars.length)));
+console.log("捨身傷（結束時）：",JSON.stringify(rows.reduce((o,s)=>(o[s.scars.length]=(o[s.scars.length]||0)+1,o),{})),"；捨身次數中位數",med(rows.map(s=>s.stats.shesh||0)));
 console.log("機器人：",JSON.stringify(W));

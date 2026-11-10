@@ -21,7 +21,11 @@ const ACT_CAT={gather:"生存",explore:"機動",fight:"戰鬥",craft:"製作",re
 const ITEM_E={木材:["生長"],石片:["切割","硬化"],草:["生長"],獸皮:["包覆"],骨頭:["硬化"],生肉:["生長"],熟肉:["熱"],野果:["生長"],魔核:["魔力"],
   石刀:["切割"],石斧:["切割","重量"],石矛:["切割"],鐵劍:["切割","硬化"],皮甲:["包覆","硬化"],水袋:["水","包覆"],背包:["包覆"],草藥膏:["生長"]};
 const FUSED_NAME={魔法:"雜糅魔法",戰鬥:"亂戰技",生存:"荒野生活術",機動:"野獸直覺",製作:"巧手",社交:"話術",天生:"偷學心得"};
-const SCARS=["左手","右手","左腿","右腿","左眼","肋骨"];
+/* 捨身：拿一個部位的傷換大成功。同一個部位可以再傷（效果疊加）。據點 S 級後可以開發萬靈藥治好一處 */
+const SCAR_PARTS=["眼睛","單手","腿","身體","心靈"];
+const SCAR_D={眼睛:"視力受損，探索時間加倍",單手:"製作、組合（施法）時間加倍",腿:"移動時間加倍",身體:"HP 上限 −20%，睡覺也回不滿",心靈:"MP 上限 −1，睡覺也回不滿"};
+const OLD_SCAR={左手:"單手",右手:"單手",左腿:"腿",右腿:"腿",左眼:"眼睛",肋骨:"身體",舊傷:"身體"};
+const BAD_END_SCARS=3;   /* 打贏魔王時身上還有幾處捨身傷就是壞結局 */
 
 let S=null;
 let rand=Math.random;
@@ -33,7 +37,11 @@ const count=(o,k,n)=>{o[k]=(o[k]||0)+(n==null?1:n)};
 const log=(t,type)=>{S.log.push({day:S.day,hour:S.hour,t,type:type||""});if(S.log.length>400)S.log.shift()};
 const pg=()=>gIdx(S.lv);
 const bpOf=()=>{const i=pg();return Math.round(BP_FLOOR[i]+BP_W[i]*S.exist/EXIST_MAX(S.lv))};
-const hpMax=()=>Math.max(5,HP_BASE(S.lv)-2*S.scars.length);
+const scarN=p=>S.scars.filter(x=>x===p).length;
+const hpMax=()=>Math.max(5,Math.round(HP_BASE(S.lv)*Math.max(.2,1-.2*scarN("身體"))));
+const mpMax=()=>Math.max(1,MP_MAX-scarN("心靈"));
+const hpSleepCap=()=>scarN("身體")?Math.floor(hpMax()*.8):hpMax();
+const mpSleepCap=()=>scarN("心靈")?Math.max(1,mpMax()-1):mpMax();
 const placeOf=n=>PLACES.find(p=>p.n===(n||S.at));
 const allSkills=()=>S.skills.concat(S.store);
 const owned=n=>allSkills().some(s=>s.n===n);
@@ -170,6 +178,8 @@ function planOf(it){
   const mpLeft=S.mp-q.mand.mp;
   q.caps={hp:Math.max(0,Math.min(3,Math.floor((S.hp-1)/q.unit))),mp:Math.max(0,Math.min(3,Math.floor(mpLeft/2))),time:q.raid?0:3,item:q.raid?Math.min(1,payItems().length-(q.useWeapon?1:0)):Math.min(3,matCount())};
   q.hours=HOURS[act]||0;if(act==="craft"&&q.recipe&&q.recipe.sh)q.hours=4;
+  const slow={explore:"眼睛",craft:"單手",combo:"單手",move:"腿"}[act];
+  if(slow&&scarN(slow)){q.hours*=1+scarN(slow);q.notes.push(`${slow}的傷：時間 ×${1+scarN(slow)}`)}
   q.judge=!["move","rest","hunt","sleep"].includes(act);
   return q;
 }
@@ -191,8 +201,8 @@ function exec(q,p){
   if(q.useWeapon){const i=S.items.findIndex(i=>i.k==="white");if(i>=0){const it=S.items.splice(i,1)[0];out.paid.push(`${it.n} 碎了`)}}
   if(q.judge){
     if(p.shesh&&q.raid&&S.raid)S.raid.shesh=1;
-    if(p.shesh){out.res="big";const part=pick(SCARS.filter(x=>!S.scars.includes(x)).concat(["舊傷"]));S.scars.push(part);
-      out.paid.push(`捨身：傷殘（${part}），HP 上限 −2`);S.hp=Math.min(S.hp,hpMax());}
+    if(p.shesh){out.res="big";const part=SCAR_PARTS.includes(p.shesh)?p.shesh:pick(SCAR_PARTS);S.scars.push(part);count(S.stats,"shesh");
+      out.paid.push(`捨身：${part}（${SCAR_D[part]}）`);S.hp=Math.min(S.hp,hpMax());S.mp=Math.min(S.mp,mpMax());}
     else{const n=sumPick(p);out.res=n<q.need?"fail":n<q.bigAt?"ok":"big";payCosts(q,p,out)}
   }
   if(q.mand.mp)S.mp-=q.mand.mp;
@@ -391,10 +401,10 @@ function night(voluntary){
   if(S.tags.疾病>0){S.hp-=1;S.tags.疾病--;lines.push("病還沒好，HP −1。")}
   if(S.hp<=0){die(null,"你在夜裡倒下了。");return}
   /* 睡 */
-  let cap=hpMax();if(S.tags.飢餓)cap=Math.ceil(hpMax()/2);
+  let cap=hpSleepCap();if(S.tags.飢餓)cap=Math.min(cap,Math.ceil(hpMax()/2));
   const gain=voluntary?cap:Math.ceil(hpMax()*.3);
   S.hp=Math.max(S.hp,Math.min(cap,S.hp+gain));
-  S.mp=voluntary?MP_MAX:Math.min(MP_MAX,S.mp+3);
+  S.mp=voluntary?mpSleepCap():Math.min(mpSleepCap(),S.mp+3);
   if(!voluntary)lines.push("撐到天亮才倒下，睡得很差。");
   if(foodCount()>=5)tick("食物","存糧夠吃好幾天了");
   const fl=facDay();if(fl)lines.push(fl);
@@ -423,7 +433,7 @@ function canBuild(){if(S.ch<2||S.nest==null)return null;const t=nestIdx()+1;if(t
   return {target:GRADES[t],need:NEST_PTS[t],ok:S.pts>=NEST_PTS[t]&&!S.raid&&!S.enc}}
 function build(){
   const b=canBuild();if(!b||!b.ok)return {err:"點數不夠"};
-  S.pts-=b.need;S.nest=b.target;S.stats.nestDay[b.target]=S.day;count(S.stats.actions,"upgrade");
+  S.pts-=b.need;S.nest=b.target;if(S.stats.nestDay[b.target]==null)S.stats.nestDay[b.target]=S.day;count(S.stats.actions,"upgrade");
   log(`據點升到 ${b.target} 級。你的異香傳得更遠了。`,"act");
   startRaid(b.target);return {ok:true};
 }
@@ -458,13 +468,13 @@ function startRaid(kind){
   const P=RAID_PLAN[kind],list=[],dirs=shuffle(DIRS);
   if(P.rounds){const m=pick(RAID_MON[P.mon]);for(let i=0;i<P.rounds;i++)list.push({n:m.n,lv:P.mon,t:m.t,dis:0,dir:`第 ${i+1} 回合`})}
   else if(kind==="boss"){/* 六個方位，每個方位一支軍團＋一隻 S 級魔物一起來，最後是魔王 */
-    for(let i=0;i<6;i++){const m=pick(RAID_MON.S);list.push({n:`${pick(ARMIES)}＋${m.n}`,lv:"S",t:m.t,dis:ARMY_DIS.S+1,dir:dirs[i]})}
-    list.push({n:"魔王",lv:"S",king:1,t:{n:"魔王威壓",e:["魔力"]},dis:ARMY_DIS.S+2,dir:"正面"})}
+    for(let i=0;i<6;i++){const m=pick(RAID_MON.S);list.push({n:`${pick(ARMIES)}＋${m.n}`,lv:"S",t:m.t,dis:Math.floor(ARMY_DIS.S)+1,dir:dirs[i]})}
+    list.push({n:"魔王",lv:"S",king:1,t:{n:"魔王威壓",e:["魔力"]},dis:Math.floor(ARMY_DIS.S)+2,dir:"正面"})}
   else{const tg=kind;
-    for(let i=0;i<P.army;i++)list.push({n:pick(ARMIES),lv:tg,army:1,t:{n:"人海",e:[]},dis:ARMY_DIS[tg],dir:dirs[i%dirs.length]});
-    P.mon.forEach(g=>{const m=pick(RAID_MON[g]);list.push({n:m.n,lv:g,t:m.t,dis:ARMY_DIS[tg]-1,dir:pick(DIRS)})});
+    for(let i=0;i<P.army;i++){const v=ARMY_DIS[tg],d=Math.floor(v+rand()),more=d>Math.floor(v);list.push({n:pick(ARMIES),lv:tg,army:1,t:{n:"人海",e:[]},dis:d,dir:dirs[i%dirs.length]+(more?"（這一面人特別多）":"")})}
+    P.mon.forEach(g=>{const m=pick(RAID_MON[g]);list.push({n:m.n,lv:g,t:m.t,dis:Math.floor(ARMY_DIS[tg])-1,dir:pick(DIRS)})});
 }
-  S.raid={kind,i:0,lost:0,won:0,max:2,list};S.stats.enc++;
+  S.raid={kind,i:0,lost:0,won:0,max:Math.floor((list.length-1)/2),list};  /* 輸掉一半就被攻破 */S.stats.enc++;
   log(kind==="boss"?`第 365 天過去了。魔王復活，帶著大軍朝你來了：一共 ${list.length} 場。`:`襲擊！大軍從各方位朝據點壓過來：一共 ${list.length} 場，輸 ${S.raid.max+1} 場據點就被攻破。`,"bad");
   nextBattle();
 }
@@ -481,7 +491,11 @@ function raidStep(win,out){
   R.i++;
   if(R.i<R.list.length){nextBattle();return}
   S.stats.raids.push({day:S.day,lv:R.kind,res:"ok",won:R.won,lost:R.lost});S.raid=null;
-  if(R.kind==="boss"){S.over={end:"退休",day:S.day};out.lines.push("你打倒了魔王。世界安靜了。你有一間房子可以退休。");return}
+  if(R.kind==="boss"){
+    if(S.scars.length>=BAD_END_SCARS){S.over={end:"收藏品",day:S.day};
+      const msg=`你打倒了魔王。可是你的身體也廢了（${S.scars.join("、")}）。世人很快就忘了是誰救了這個世界。管理員來接你，把你放進他的收藏櫃，給了你一個位置。`;out.lines.push(msg);log(msg,"end")}
+    else{S.over={end:"退休",day:S.day};const msg=`你打倒了魔王。世界安靜了。${S.scars.length?`身上還留著${S.scars.join("、")}的傷，但你還走得動。`:""}你有一間房子可以退休。`;out.lines.push(msg);log(msg,"end")}
+    return}
   const g=gIdx(R.kind),core=g,hide=2*g;addMat("魔核",core);addMat("獸皮",hide);
   out.lines.push(`守住了！${R.kind} 級據點站穩了。`);out.gain.push(`魔核×${core}`,`獸皮×${hide}`);
   offerFac();
@@ -499,6 +513,13 @@ function moveBase(){
   Object.keys(S.mats).forEach(m=>S.mats[m]=Math.floor(S.mats[m]/2));
   S.nest="F";S.base=S.at;log(`你把據點搬到${S.at}。據點變回 F 級，設施和點數歸零，物資只帶走一半。`,"act");offerFac();advance(6);return {ok:true};
 }
+/* 萬靈藥：據點 S 級後開發，治好一處捨身傷 */
+const CURE_COST={魔核:5,草:5};
+function makeCure(){if(S.nest!=="S")return {err:"據點要 S 級才能開發萬靈藥"};
+  if(!Object.entries(CURE_COST).every(([m,n])=>(S.mats[m]||0)>=n))return {err:"材料不夠（魔核 5、草 5）"};if(bagFull())return {err:"背包滿了"};
+  Object.entries(CURE_COST).forEach(([m,n])=>S.mats[m]-=n);S.items.push({n:"萬靈藥",k:"cure",lv:"S"});log("開發出一瓶萬靈藥。","good");advance(4);return {ok:true}}
+function useCure(part){const i=S.items.findIndex(x=>x.k==="cure");if(i<0)return {err:"沒有萬靈藥"};const j=S.scars.indexOf(part);if(j<0)return {err:"這個部位沒有捨身傷"};
+  S.items.splice(i,1);S.scars.splice(j,1);log(`喝下萬靈藥，${part}的捨身傷好了。`,"good");return {ok:true}}
 function startBoss(){if(!S.pending||S.pending.type!=="boss")return;S.pending=null;startRaid("boss")}
 function failChoice(flee){
   const boss=S.pending&&S.pending.boss;S.pending=null;
@@ -521,6 +542,6 @@ function trade(kind,item){
 /* OOC：更正帳目 */
 function oocAdd(name,n){n=n||1;if(MATS.includes(name))addMat(name,n);else if(name==="金幣")S.gold+=n;else S.items.push({n:name,k:"white",lv:S.lv});S.stats.ooc.add++;log(`[OOC] 補登 ${name}×${n}`,"ooc")}
 function oocRemove(name,n){n=n||1;if(MATS.includes(name))S.mats[name]=Math.max(0,(S.mats[name]||0)-n);else if(name==="金幣")S.gold=Math.max(0,S.gold-n);else{const i=S.items.findIndex(x=>x.n===name);if(i>=0)S.items.splice(i,1)}S.stats.ooc.remove++;log(`[OOC] 撤銷 ${name}×${n}`,"ooc")}
-function oocSet(field,v){if(field==="hp")S.hp=Math.max(1,Math.min(hpMax(),v));else if(field==="mp")S.mp=Math.max(0,Math.min(MP_MAX,v));else if(field==="gold")S.gold=Math.max(0,v);
+function oocSet(field,v){if(field==="hp")S.hp=Math.max(1,Math.min(hpMax(),v));else if(field==="mp")S.mp=Math.max(0,Math.min(mpMax(),v));else if(field==="gold")S.gold=Math.max(0,v);
   else if(NEEDS.includes(field)){S.needs[field]=!!v;checkChapter()}
   S.stats.ooc.edit++;log(`[OOC] ${field} 改成 ${v}`,"ooc")}
