@@ -8,7 +8,8 @@ let draft=null;   // 目前打開的判定面板 {q, p, kind}
 
 function save(){ls.s(SAVE_KEY,JSON.stringify(S))}
 function load(){try{const t=ls.g(SAVE_KEY);if(t){S=JSON.parse(t);return true}}catch(e){}return false}
-function heal(){S.recipes=S.recipes||[];S.itemUsed=S.itemUsed||{};S.stats=S.stats||{};["nestDay","lvDay","actions","skillUse","itemUse","crafted"].forEach(k=>S.stats[k]=S.stats[k]||{});S.stats.raids=S.stats.raids||[];S.stats.hunts=S.stats.hunts||{ok:0,big:0,fail:0};S.stats.ooc=S.stats.ooc||{add:0,remove:0,edit:0}}
+const TAGN={gather:"採集",hunt:"狩獵",craft:"製作",build:"建造",defense:"防守"};
+function heal(){S.recipes=S.recipes||[];S.tried=S.tried||[];S.itemUsed=S.itemUsed||{};S.stats=S.stats||{};["nestDay","lvDay","actions","skillUse","itemUse","crafted"].forEach(k=>S.stats[k]=S.stats[k]||{});S.stats.raids=S.stats.raids||[];S.stats.hunts=S.stats.hunts||{ok:0,big:0,fail:0};S.stats.ooc=S.stats.ooc||{add:0,remove:0,edit:0}}
 
 /* ───── 畫面 ───── */
 function bar(a,b){return `<div class="bar"><i style="width:${Math.max(0,Math.min(100,a/b*100))}%"></i></div>`}
@@ -58,7 +59,7 @@ function renderPanel(){
   o.skill=d.skill!=null?d.skill:null;o.weapon=!!d.weapon;o.magic=d.magic!=null?d.magic:null;
   const q=planOf(d.kind,o);d.q=q;
   const sum=sumPick(d.p),res=sum<q.need?"失敗":sum<q.bigAt?"成功":"大成功";
-  const skOpts=S.skills.map((s,i)=>`<option value="${i}" ${d.skill===i?"selected":""}>${esc(s.n)}（${s.lv}，剩 ${SKILL_PER_DAY-s.used}）</option>`).join("");
+  const skOpts=S.skills.map((s,i)=>`<option value="${i}" ${d.skill===i?"selected":""}>${esc(s.n)}（${s.lv}，剩 ${SKILL_PER_DAY-s.used}，擅長：${s.tags.map(t=>TAGN[t]||t).join("、")}）</option>`).join("");
   const mg=S.items.map((it,i)=>it.kind==="magic"?`<option value="${i}" ${d.magic===i?"selected":""}>${esc(it.n)}${S.itemUsed[it.n]?"（今天用過）":""}</option>`:"").join("");
   const step=(k,t)=>`<div class="step"><span>${t}</span><button data-s="${k}-">−</button><span>${d.p[k]}/${q.caps[k]}</span><button data-s="${k}+">＋</button></div>`;
   P.innerHTML=`<div class="box"><b>${NAME[d.kind]}</b>${q.eIdx!=null&&d.kind!=="gather"&&d.kind!=="craft"&&d.kind!=="fuse"?"　對手："+(q.boss?"魔王":GRADES[q.eIdx]+" 級"):""}
@@ -106,14 +107,23 @@ function sheetHunt(){
 function sheetCraft(){
   const have=MATS.filter(m=>S.mats[m]);
   if(!have.length)return sheet("<p>你沒有材料。</p>");
-  sheet(`<h3>製作</h3><div class="note">選 2～3 樣材料（可重複）。沒做過的配方是「實驗」，成功才會記下來。</div>
+  const left=RECIPES.filter(r=>!S.recipes.includes(r.id));
+  const n2=left.filter(r=>r.need.length===2).length, n3=left.filter(r=>r.need.length===3).length;
+  const nestN=left.filter(r=>r.nest!=null).length;
+  const hint=left.length?`還有 ${left.length} 個配方沒找到（兩樣材料 ${n2} 個、三樣材料 ${n3} 個）。${nestN?`其中 ${nestN} 個要先有據點才做得出來。`:""}`:"所有配方都找到了。";
+  const knownKeys=S.recipes.map(id=>RECIPES.find(x=>x.id===id).need.slice().sort().join("＋"));
+  const tried=S.tried.filter(k=>!knownKeys.includes(k));
+  sheet(`<h3>製作</h3><div class="note">選 2～3 樣材料（可重複）。已知配方直接做；沒找過的組合要付 1 項代價（受傷、MP、時間或材料）才可能成功，失敗扣 1 份材料，湊不出東西材料不會扣。</div>
+   <div class="note">${hint}</div>
    ${[0,1,2].map(i=>`<select class="cm"><option value="">—</option>${have.map(m=>`<option>${m}</option>`).join("")}</select>`).join("")}
    <p>已知配方：${S.recipes.map(id=>{const r=RECIPES.find(x=>x.id===id);return esc(r.need.join("＋")+"→"+r.out.n)}).join("；")||"（無）"}</p>
+   <p>試過、還沒成功的組合：${tried.length?tried.map(esc).join("、"):"（無）"}</p>
    <button class="pri" id="cgo">開始</button>`);
   $("cgo").onclick=()=>{
     const ms=[...document.querySelectorAll(".cm")].map(s=>s.value).filter(Boolean);
     const c={};ms.forEach(m=>c[m]=(c[m]||0)+1);
     if(ms.length<2||Object.entries(c).some(([m,n])=>(S.mats[m]||0)<n))return alert("材料不夠或少於 2 樣");
+    if(!matchRecipe(ms)&&gatedRecipe(ms))return alert("這組材料要先蓋據點才做得出來");
     closeSheet();openJudge("craft",{mats:ms});
   };
 }

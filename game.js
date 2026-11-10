@@ -61,7 +61,7 @@ function newGame(){
   for(let i=0;i<3;i++){const s=pool.splice(Math.floor(rand()*pool.length),1)[0];sk.push({n:s.n,cls:s.cls,tags:s.tags.slice(),lv:"F",used:0})}
   S={ver:VER,day:1,hour:WAKE,lv:"F",exist:0,hp:HP_MAX("F"),mp:MP_MAX,gold:0,
     skills:sk,items:[],mats:{},nest:null,pending:null,over:null,
-    recipes:["axe","potion"],log:[],
+    recipes:["axe","potion"],tried:[],log:[],
     stats:{nestDay:{},lvDay:{},actions:{},skillUse:{},itemUse:{},raids:[],hunts:{ok:0,big:0,fail:0},ooc:{add:0,remove:0,edit:0},crafted:{}}};
   log(LETTER,"letter"); log("你在一片荒野醒來。身上只有 3 個不起眼的技能。"+TRAIT);
   return S;
@@ -117,6 +117,11 @@ function matchRecipe(ms){
   const a=ms.slice().sort().join();
   return RECIPES.find(r=>r.need.slice().sort().join()===a&&(r.nest==null||nestIdx()>=r.nest))||null;
 }
+/* 材料組合對得上、但還沒有據點，這種配方要先蓋據點才做得出來 */
+function gatedRecipe(ms){
+  const a=ms.slice().sort().join();
+  return RECIPES.find(r=>r.need.slice().sort().join()===a&&r.nest!=null&&nestIdx()<r.nest)||null;
+}
 function sumPick(p){return (p.hp||0)+(p.mp||0)+(p.time||0)+(p.item||0)}
 
 function payCosts(q,p,key){
@@ -160,14 +165,16 @@ function exec(q,p){
       out.text=`打倒了${out.enemy}。`;
     }
   }else if(q.type==="craft"){
-    const r=q.recipe;
-    if(res==="fail"||!r){
-      if(res!=="fail"&&!r){(q.o.mats||[]).forEach(m=>{if(S.mats[m]>0)S.mats[m]--})}
-      if(res!=="fail"&&!r)out.text="亂湊了一堆，什麼也沒做出來。（材料全用掉了）";
-      else out.text="沒做成，浪費了一份材料。";
-      const f=(q.o.mats||[]).find(m=>S.mats[m]>0);if(f)S.mats[f]--;
+    const r=q.recipe, ms=q.o.mats||[];
+    const known=!!(r&&S.recipes.includes(r.id));
+    if(!known){const key=ms.slice().sort().join("＋");if(!S.tried.includes(key))S.tried.push(key)}
+    if(res==="fail"){
+      const f=ms.find(m=>S.mats[m]>0);if(f)S.mats[f]--;
+      out.text="沒做成，浪費了一份材料。";
+    }else if(!r){
+      out.text="這幾樣湊不出東西。材料還在，你記下了這個組合。";
     }else{
-      (q.o.mats||[]).forEach(m=>{S.mats[m]--});
+      ms.forEach(m=>{S.mats[m]--});
       const it=Object.assign({lv:S.lv},r.out);S.items.push(it);count(S.stats.crafted,it.n);
       if(!S.recipes.includes(r.id)){S.recipes.push(r.id);out.text="第一次成功！"}
       out.gain.push(it.n);out.text+=`做出了${it.n}。`;
