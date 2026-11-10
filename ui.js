@@ -118,7 +118,9 @@ function sheetCraft(){
    ${[0,1,2].map(i=>`<select class="cm"><option value="">—</option>${have.map(m=>`<option>${m}</option>`).join("")}</select>`).join("")}
    <p>已知配方：${S.recipes.map(id=>{const r=RECIPES.find(x=>x.id===id);return esc(r.need.join("＋")+"→"+r.out.n)}).join("；")||"（無）"}</p>
    <p>試過、還沒成功的組合：${tried.length?tried.map(esc).join("、"):"（無）"}</p>
+   <p><button id="rtab">配方表（測試用，全部顯示）</button></p>
    <button class="pri" id="cgo">開始</button>`);
+  $("rtab").onclick=sheetRecipes;
   $("cgo").onclick=()=>{
     const ms=[...document.querySelectorAll(".cm")].map(s=>s.value).filter(Boolean);
     const c={};ms.forEach(m=>c[m]=(c[m]||0)+1);
@@ -126,6 +128,10 @@ function sheetCraft(){
     if(!matchRecipe(ms)&&gatedRecipe(ms))return alert("這組材料要先蓋據點才做得出來");
     closeSheet();openJudge("craft",{mats:ms});
   };
+}
+function sheetRecipes(){
+  sheet(`<h3>配方表（測試用，全部顯示）</h3><div class="note">共 ${RECIPES.length} 個配方，已知 ${S.recipes.length} 個。</div>`+
+    RECIPES.map(r=>`<p>${esc(r.need.join("＋"))} → <b>${esc(r.out.n)}</b>（${esc(r.out.kind)}${r.out.tag?"・"+esc(TAGN[r.out.tag]||r.out.tag):""}）${r.nest!=null?"・要據點":""}・${S.recipes.includes(r.id)?"已知":"未知"}</p>`).join(""));
 }
 function sheetFuse(){
   sheet(`<h3>整合：3 個同類同階技能合成 1 個（高一階）</h3>`+S.skills.map((s,i)=>`<label class="ck"><input type="checkbox" class="fk" value="${i}">${esc(s.n)}（${s.cls}・${s.lv}）</label>`).join("")+`<button class="pri" id="fgo">開始</button>`);
