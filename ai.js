@@ -304,7 +304,9 @@ function aiContext(){
   if(S.store.length)L.push(`倉庫（不能直接用）：${S.store.map(s=>s.n).join("、")}`);
   L.push(`物品：${S.items.map(i=>i.n).join("、")||"無"}；材料：${MATS.filter(m=>S.mats[m]).map(m=>m+"×"+S.mats[m]).join("、")||"無"}`);
   L.push(`看過的魔物技巧：${S.seen.map(x=>`${x.n}（${x.from}）`).join("、")||"無"}`);
-  if(S.enc)L.push(`正在遭遇：${S.enc.n}（${S.enc.lv} 級）`);
+  if(S.ch===2)L.push(`據點：${S.nest} 級（${S.base}），點數 ${S.pts}；設施：${S.fac.map(f=>f.n+(f.s?`〔${f.s.n}〕`:"〔空〕")).join("、")||"無"}`);
+  if(S.raid)L.push(`${S.raid.kind==="boss"?"魔王戰":"升級戰"}進行中：第 ${S.raid.i+1}/${S.raid.list.length} 場（${S.enc?S.enc.dir:""}），已輸 ${S.raid.lost}`);
+  if(S.enc)L.push(`正在遭遇：${S.enc.n}（${S.enc.lv} 級）${S.enc.army?"，大軍":""}`);
   L.push(`手法：${MOVES.map(m=>m.n).join("、")}`);
   L.push(`配方：${RECIPES.map(r=>r.n).join("、")}`);
   return L.join("\n");
