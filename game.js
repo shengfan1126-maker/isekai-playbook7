@@ -61,7 +61,7 @@ function newGame(){
   for(let i=0;i<3;i++){const s=pool.splice(Math.floor(rand()*pool.length),1)[0];sk.push({n:s.n,cls:s.cls,tags:s.tags.slice(),lv:"F",used:0})}
   S={ver:VER,day:1,hour:WAKE,lv:"F",exist:0,hp:HP_MAX("F"),mp:MP_MAX,gold:0,
     skills:sk,items:[],mats:{},nest:null,pending:null,over:null,
-    recipes:[],log:[],
+    recipes:["axe","potion"],log:[],
     stats:{nestDay:{},lvDay:{},actions:{},skillUse:{},itemUse:{},raids:[],hunts:{ok:0,big:0,fail:0},ooc:{add:0,remove:0,edit:0},crafted:{}}};
   log(LETTER,"letter"); log("你在一片荒野醒來。身上只有 3 個不起眼的技能。"+TRAIT);
   return S;
@@ -162,9 +162,10 @@ function exec(q,p){
   }else if(q.type==="craft"){
     const r=q.recipe;
     if(res==="fail"||!r){
-      if(res!=="fail"&&!r)out.text="亂湊了一堆，只得到一團不知道是什麼的東西。（材料用掉了）";
-      else out.text="沒做成，材料浪費了。";
-      (q.o.mats||[]).forEach(m=>{if(S.mats[m]>0)S.mats[m]--});
+      if(res!=="fail"&&!r){(q.o.mats||[]).forEach(m=>{if(S.mats[m]>0)S.mats[m]--})}
+      if(res!=="fail"&&!r)out.text="亂湊了一堆，什麼也沒做出來。（材料全用掉了）";
+      else out.text="沒做成，浪費了一份材料。";
+      const f=(q.o.mats||[]).find(m=>S.mats[m]>0);if(f)S.mats[f]--;
     }else{
       (q.o.mats||[]).forEach(m=>{S.mats[m]--});
       const it=Object.assign({lv:S.lv},r.out);S.items.push(it);count(S.stats.crafted,it.n);
