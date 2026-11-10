@@ -1,12 +1,8 @@
-/* 孤獨異世界 樣式：沿用魔物篇的米色紙面設計（深色模式自動跟系統）。只管外觀。 */
-:root{
+/* 孤獨異世界 樣式：魔物篇的米色紙面設計，固定淺色（不跟系統深色模式）。只管外觀。 */
+:root{color-scheme:light;
   --bg:#f2efe9;--card:#fffdf9;--ink:#1f1e1c;--ink2:#3a3833;--mute:#7a766e;--line:#ddd7cb;--chip:#cbc5ba;
   --soft:#eee8dc;--gold:#8a6d2f;--on-ink:#f2efe9;--bad:#9b3a2e;--bad-bg:#f6e4df;--good:#2f6b62;--good-bg:#dcede8;--stone:#4d5a52;
 }
-@media (prefers-color-scheme: dark){:root{
-  --bg:#1a1917;--card:#242220;--ink:#ece7de;--ink2:#d3cdc2;--mute:#a39d92;--line:#3a3733;--chip:#4d4942;
-  --soft:#2e2b28;--gold:#d0b06a;--on-ink:#1a1917;--bad:#e08a7d;--bad-bg:#3a2522;--good:#7cc2b6;--good-bg:#1f3330;--stone:#9fb3a7;
-}}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{background:var(--bg)}
 body{font-family:"Noto Sans TC","PingFang TC","Hiragino Sans CNS","Microsoft JhengHei",sans-serif;color:var(--ink);font-size:15px;line-height:1.65;-webkit-font-smoothing:antialiased}
