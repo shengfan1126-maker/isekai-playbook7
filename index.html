@@ -5,11 +5,11 @@
 <meta name="color-scheme" content="light">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>孤獨異世界・365 天</title>
-<link rel="stylesheet" href="style.css?v=0.2">
+<link rel="stylesheet" href="style.css?v=0.2.1">
 </head>
 <body>
 <div class="app">
-  <div class="hd"><h1>孤獨異世界・365 天</h1><span class="sub">v0.2</span>
+  <div class="hd"><h1>孤獨異世界・365 天</h1><span class="sub">v0.2.1</span>
     <button id="bset" class="gear" aria-label="設定">⚙</button></div>
   <div id="status"></div>
   <div id="panel"></div>
@@ -19,9 +19,52 @@
   <footer>數值、判定、打勾都由程式計算；AI 只負責聽懂你的話和寫故事。</footer>
 </div>
 <div class="sheet" id="sheet"><div class="sbox" id="sbody"></div></div>
-<script src="data.js?v=0.2"></script>
-<script src="game.js?v=0.2"></script>
-<script src="ai.js?v=0.2"></script>
-<script src="ui.js?v=0.2"></script>
+<!-- 設定頁：照搬魔物篇（monster-game）的設定頁，金鑰共用 -->
+<div class="sheet" id="setsheet">
+  <div class="sbox">
+    <h3>設定</h3>
+    <div class="note">金鑰只留在這台裝置的瀏覽器裡。純前端網頁藏不住金鑰，填好的檔案別傳給別人。和魔物篇在同一個網址下，金鑰兩邊共用。</div>
+    <label>用哪一家</label>
+    <div class="mseg" id="pseg"><button data-p="both">Gemini＋OpenRouter</button><button data-p="gemini">Gemini</button><button data-p="or">OpenRouter 免費</button></div>
+    <div id="gembox">
+      <label>Gemini API Key</label>
+      <input type="password" id="gkey" placeholder="AIza…" autocomplete="off">
+      <div class="note" id="geminfo"></div>
+      <button class="pick" id="regem">重新抓 Gemini 模型名單</button>
+    </div>
+    <div id="orbox">
+    <label>OpenRouter API Key</label>
+    <input type="password" id="key" placeholder="sk-or-v1-…" autocomplete="off">
+    <label>模型</label>
+    <div class="mseg" id="mseg"><button data-m="auto">自動挑免費的</button><button data-m="list">自己排免費清單</button></div>
+    <div id="autobox">
+      <div class="note" id="autoinfo"></div>
+      <button class="pick" id="refree">重新抓免費模型名單</button>
+    </div>
+    <div id="listbox">
+      <textarea id="model" rows="3" spellcheck="false"></textarea>
+      <div class="note">一行一個，從上往下試。只會送給免費模型，清單裡的付費模型會被跳過、不會送出。</div>
+      <button class="pick" id="pickfree">列出現在免費的模型</button>
+      <div id="freelist"></div>
+    </div>
+    </div>
+
+    <h4>存檔</h4>
+    <div class="note">遊戲每個行動自動存在這個瀏覽器。換手機、換瀏覽器、清除瀏覽資料之前，先匯出存檔。</div>
+    <div class="btnrow">
+      <button id="exp">匯出存檔</button>
+      <button id="imp">匯入存檔</button>
+    </div>
+    <div class="btnrow"><button id="expst">匯出紀錄（純文字）</button></div>
+    <div class="btnrow"><button class="danger" id="newg">重新開始</button></div>
+    <div class="note" id="snote" style="margin-top:8px"></div>
+    <input type="file" id="impfile" accept=".json,application/json" hidden>
+    <button class="close" id="setdone">完成</button>
+  </div>
+</div>
+<script src="data.js?v=0.2.1"></script>
+<script src="game.js?v=0.2.1"></script>
+<script src="ai.js?v=0.2.1"></script>
+<script src="ui.js?v=0.2.1"></script>
 </body>
 </html>

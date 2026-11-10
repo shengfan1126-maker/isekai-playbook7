@@ -75,3 +75,24 @@ label.chip small{color:var(--mute);font-weight:400;font-size:11px}
 .l.good{color:var(--good);font-weight:700}
 .l.bad{color:var(--bad)}
 .l.day{color:var(--gold);font-weight:700}
+
+/* 設定頁：照搬魔物篇 */
+.sbox h4{font-size:12px;letter-spacing:.15em;color:var(--mute);margin:18px 0 6px;font-weight:800}
+.sbox input[type=password],.sbox textarea{width:100%;font-size:14px;padding:11px;border:1px solid var(--chip);border-radius:4px;background:var(--card)}
+.sbox textarea{resize:vertical;line-height:1.5;font-size:13px}
+.pick{width:100%;margin-top:9px;background:var(--card);border:1px solid var(--chip);font-size:13px;padding:9px;border-radius:4px;cursor:pointer}
+.mlist{margin-top:9px;max-height:210px;overflow:auto;border:1px solid var(--line);border-radius:4px;background:var(--card)}
+.mrow{display:flex;gap:9px;align-items:center;padding:9px 11px;border-bottom:1px solid var(--soft);cursor:pointer}
+.mrow .nm2{flex:1;min-width:0}
+.mrow .t1{display:block;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mrow .t2{display:block;font-size:11px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mrow .o2{font-size:11px;color:var(--gold);font-weight:700}
+.mrow.has{opacity:.4}
+.btnrow{display:flex;gap:7px;margin-top:6px}
+.btnrow button{flex:1;background:var(--card);border:1.5px solid var(--ink);border-radius:4px;padding:10px;font-weight:700;font-size:13.5px;cursor:pointer}
+.btnrow button.danger{border-color:var(--bad);color:var(--bad)}
+.mseg{display:flex;border:1.5px solid var(--ink);border-radius:4px;overflow:hidden;margin-bottom:6px}
+.mseg button{flex:1;background:var(--card);border:none;border-radius:0;padding:9px;font-size:13px;color:var(--mute);cursor:pointer;font-weight:400}
+.mseg button.on{background:var(--ink);color:var(--on-ink);font-weight:700}
+.close{width:100%;margin-top:18px;background:var(--ink);color:var(--on-ink);font-weight:800;padding:13px;border:none;border-radius:4px;cursor:pointer}
+[hidden]{display:none!important}

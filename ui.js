@@ -216,19 +216,61 @@ function sheetTrade(){
    `<div class="note">買（厭惡加價）：</div>`+Object.keys(BUY).map(m=>`<button data-t="buy|${m}">${m} ${BUY[m]*2}</button>`).join(" "));
   $("sbody").querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{const [k,m]=b.dataset.t.split("|"),r=trade(k,m);if(r.err)toast=r.err;save();sheetTrade()});
 }
-$("bset").onclick=()=>{
-  const c=AI.cfg();
-  sheet(`<h3>設定：自由敘事的 AI</h3><div class="note">金鑰只存在這台裝置。不填也能用按鈕玩。</div>
-  <label>用哪一家</label><select id="pv"><option value="none" ${c.prov==="none"?"selected":""}>不用 AI</option><option value="gemini" ${c.prov==="gemini"?"selected":""}>Gemini（Google AI Studio）</option><option value="openrouter" ${c.prov==="openrouter"?"selected":""}>OpenRouter</option></select>
-  <label>Gemini 金鑰</label><input type="password" id="gk" value="${esc(c.gk)}"><label>Gemini 模型</label><input id="gm" value="${esc(c.gm)}">
-  <label>OpenRouter 金鑰</label><input type="password" id="ok" value="${esc(c.ok)}"><label>OpenRouter 模型</label><input id="om" value="${esc(c.om)}">
-  <p><button class="pri" id="gs">儲存</button></p>
-  <p><button id="ex">複製存檔</button> <button id="nw" class="bad">重新開始</button></p><div id="nwc"></div>`);
-  $("gs").onclick=()=>{ls.s("ai_prov",$("pv").value);ls.s("gm_key",$("gk").value.trim());ls.s("gm_model",$("gm").value.trim()||"gemini-2.5-flash");
-    ls.s("or_key",$("ok").value.trim());ls.s("or_model",$("om").value.trim()||"google/gemini-2.5-flash");closeSheet()};
-  $("ex").onclick=()=>{try{navigator.clipboard.writeText(JSON.stringify(S))}catch(e){}};
-  $("nw").onclick=()=>{$("nwc").innerHTML=`<p>確定重新開始？目前進度會消失。 <button class="bad" id="nwy">確定</button></p>`;$("nwy").onclick=()=>{newGame();draft=null;closeSheet()}};
-};
+/* ───── 設定（照搬魔物篇的設定頁；金鑰沿用魔物篇存的那一份） ───── */
+function modeUI(){
+  $("mseg").querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.m===MODE));
+  $("autobox").hidden=MODE==="list";$("listbox").hidden=MODE!=="list";
+  let c=null;try{c=JSON.parse(ls.g("mowu_free3")||"null")}catch(e){}
+  const good=ls.g("mowu_good");
+  $("autoinfo").innerHTML=`遊戲只用 OpenRouter 上價格為 0 的免費聊天模型，不會花你的點數。每回合最多試 3 個，成功的記下來下次先用；剛失敗的先跳過十分鐘。<br>免費模型一天 1000 次、每分鐘 20 次，試失敗的也算。`+
+    (good?`<br>上次成功：<b>${esc(shortName(good))}</b>`:"")+(c&&c.list?`<br>目前名單：${c.list.length} 個`:"");
+}
+function provUI(){
+  $("pseg").querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.p===PROV));
+  $("gembox").hidden=PROV==="or";$("orbox").hidden=PROV==="gemini";
+  let c=null;try{c=JSON.parse(ls.g("mowu_gem")||"null")}catch(e){}
+  const good=ls.g("mowu_gem_good");
+  $("geminfo").innerHTML=`遊戲自己挑 Gemini 模型，flash 系列優先（免費額度最寬），每回合最多試 3 個，成功的記下來下次先用。<br><b>不花錢的前提：</b>這把 key 所在的 Google 專案沒有開計費（billing）。到 AI Studio 的 API key 頁面確認它是免費方案。`+
+    (good?`<br>上次成功：<b>${esc(good)}</b>`:"")+(c&&c.list?`<br>目前名單：${c.list.length} 個`:"");
+}
+function snoteSet(t,bad){$("snote").textContent=t;$("snote").style.color=bad?"var(--bad)":""}
+let newgArmed=false,newgTimer=null;
+function disarmNewg(){newgArmed=false;$("newg").textContent="重新開始";snoteSet("")}
+function closeSet(){disarmNewg();ls.s("or_key",EL.key.value.trim());ls.s("gm_key",EL.gkey.value.trim());ls.s("or_model",EL.model.value.trim());$("setsheet").classList.remove("on");refresh()}
+function download(blob,name){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000)}
+function initSettings(){
+  $("mseg").querySelectorAll("button").forEach(b=>b.onclick=()=>{MODE=b.dataset.m;ls.s("mowu_mode",MODE);modeUI()});
+  $("pseg").querySelectorAll("button").forEach(b=>b.onclick=()=>{PROV=b.dataset.p;ls.s("mowu_prov",PROV);provUI()});
+  $("regem").onclick=async()=>{const b=$("regem");ls.s("gm_key",EL.gkey.value.trim());b.disabled=true;b.textContent="抓取中…";
+    try{await gemModels(true)}catch(e){snoteSet("抓不到："+(e.message||e),1)}b.disabled=false;b.textContent="重新抓 Gemini 模型名單";provUI()};
+  $("refree").onclick=async()=>{const b=$("refree");b.disabled=true;b.textContent="抓取中…";
+    try{await cachedList("free",true);ls.s("mowu_bad","{}")}catch(e){snoteSet("抓不到："+(e.message||e),1)}b.disabled=false;b.textContent="重新抓免費模型名單";modeUI()};
+  $("bset").onclick=()=>{modeUI();provUI();snoteSet("");$("setsheet").classList.add("on")};
+  $("setdone").onclick=closeSet;
+  $("setsheet").onclick=e=>{if(e.target===$("setsheet"))closeSet()};
+  $("pickfree").onclick=async()=>{const b=$("pickfree");b.disabled=true;b.textContent="查詢中…";
+    try{const r=await fetch("https://openrouter.ai/api/v1/models");const all=(await r.json()).data||[];
+      const free=all.filter(m=>{const p=m.pricing||{};return parseFloat(p.prompt||"1")===0&&parseFloat(p.completion||"1")===0}).sort((a,b)=>outCap(b)-outCap(a));
+      if(!free.length)throw new Error("沒查到免費模型");
+      const have=EL.model.value.split(/[\n,]/).map(s=>s.trim());
+      $("freelist").innerHTML=`<div class="note" style="margin-top:6px">點一下加進上面的清單。右邊是輸出上限。</div><div class="mlist">`+
+        free.map(m=>{const c=outCap(m);return `<div class="mrow${have.includes(m.id)?" has":""}" data-id="${esc(m.id)}"><span class="nm2"><span class="t1">${esc(m.name||m.id)}</span><span class="t2">${esc(m.id)}</span></span><span class="o2">${c?(c>=1000?Math.round(c/1000)+"K":c):"—"}</span></div>`}).join("")+`</div>`;
+      $("freelist").querySelectorAll(".mrow").forEach(el=>el.onclick=()=>{const cur=EL.model.value.split(/[\n,]/).map(s=>s.trim()).filter(Boolean);
+        if(!cur.includes(el.dataset.id)){EL.model.value=cur.concat(el.dataset.id).join("\n");el.classList.add("has")}});
+    }catch(e){$("freelist").innerHTML=`<div class="note" style="color:var(--bad)">查不到：${esc(e.message||e)}</div>`}
+    b.disabled=false;b.textContent="列出現在免費的模型"};
+  $("exp").onclick=()=>download(new Blob([JSON.stringify(S)],{type:"application/json"}),`孤獨異世界_第${S.day}天.json`);
+  $("expst").onclick=()=>download(new Blob(["\ufeff"+exportText()],{type:"text/plain;charset=utf-8"}),`孤獨異世界_紀錄_第${S.day}天.txt`);
+  $("imp").onclick=()=>$("impfile").click();
+  $("impfile").onchange=()=>{const f=$("impfile").files[0];if(!f)return;const rd=new FileReader();
+    rd.onload=()=>{try{const o=JSON.parse(rd.result);if(!o||o.ver!==VER||!o.needs)throw 0;S=o;heal();draft=null;busy=false;save();closeSet()}
+      catch(e){snoteSet("這不是這個版本的存檔。",1)}$("impfile").value=""};rd.readAsText(f)};
+  $("newg").onclick=()=>{
+    if(!newgArmed){newgArmed=true;$("newg").textContent="再按一次，確定清除進度";snoteSet("目前的進度會被清掉。想留著就先按「匯出存檔」。",1);
+      clearTimeout(newgTimer);newgTimer=setTimeout(disarmNewg,5000);return}
+    disarmNewg();newGame();draft=null;busy=false;toast="";closeSet()};
+}
+initSettings();
 
 if(!load())newGame();else heal();
 refresh();
