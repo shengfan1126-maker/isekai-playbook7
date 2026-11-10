@@ -141,7 +141,7 @@ function planOf(it){
   if(act==="retreat")q.base=1;
   if(act==="shelter"){if(!placeOf().cave)q.err="這裡沒有能占用的岩穴";q.base=0}
   if(["fight","retreat"].includes(act)&&!S.enc)q.err="現在沒有遭遇";
-  if(S.enc&&["fight","retreat","combo"].includes(act))q.eIdx=gIdx(S.enc.lv);
+  if(S.enc&&["fight","retreat","combo"].includes(act)){q.eIdx=gIdx(S.enc.lv);if(S.enc.raid)q.key=true}
   if(act==="raid"){q.key=true;q.eIdx=gIdx(S.pending.lv)}
   if(act==="boss"){q.key=true;q.boss=true;q.eIdx=7}
   let net=q.base;if(q.base)q.notes.push(act==="craft"?"會做的東西 +1":"日常 +1");
@@ -229,11 +229,29 @@ function loot(out,big){
 }
 function doFight(q,out){
   const en=S.enc;
-  if(out.res==="fail"){S.hp-=q.unit;out.lines.push(`${en.n}把你打退了。HP −${q.unit}`);S.enc=null;return}
-  out.lines.push(`打倒了${en.n}。`);loot(out,out.res==="big");S.enc=null;
+  if(out.res==="fail"){S.hp-=q.unit;out.lines.push(`${en.n}把你打退了。HP −${q.unit}`);S.enc=null;if(en.raid)raidLost(out);return}
+  out.lines.push(`打倒了${en.n}。`);loot(out,out.res==="big");S.enc=null;if(en.raid)raidWon(q,out,en);
+}
+/* 據點襲擊：升級一次，引來一隻真的魔物（據點新等級），在據點打一架 */
+function raidMonster(lv){
+  let i=gIdx(lv);while(i>0&&!MONSTERS[GRADES[i]])i--;
+  const m=pick(MONSTERS[GRADES[i]]);return {n:m.n,lv:GRADES[i],t:m.t,raid:true};
+}
+function raidWon(q,out,en){
+  const big=out.res==="big",ex=2+Math.max(0,gIdx(en.lv)-pg());
+  S.exist=Math.min(EXIST_MAX(S.lv),S.exist+ex);addMat("獸皮",2);addMat("魔核",big?2:1);
+  out.gain.push(`守住據點：存在值+${ex}`,"獸皮×2",big?"魔核×2":"魔核");out.lines.push("據點守住了。");
+  S.stats.raids.push({day:S.day,lv:S.nest,mon:en.n,res:out.res});
+}
+function raidLost(out){
+  S.stats.raids.push({day:S.day,lv:S.nest,mon:"",res:"fail"});out.lines.push("據點被攻破了。");S.pending={type:"failchoice"};
 }
 function doRetreat(q,out){
   const en=S.enc;
+  if(en.raid){if(out.res==="fail"){const d=Math.ceil(q.unit*1.5);S.hp-=d;out.lines.push(`你逃了，但被${en.n}追上咬了一口。HP −${d}`)}
+    S.enc=null;S.nest="F";Object.keys(S.mats).forEach(m=>S.mats[m]=Math.floor(S.mats[m]/2));
+    S.stats.raids.push({day:S.day,lv:"逃",mon:en.n,res:"retreat"});count(S.stats.actions,"flee");
+    out.lines.push(`你放棄據點逃走。${en.n}佔了那裡，你帶著一半的東西，據點從 F 重來。`);return}
   if(out.res==="fail"){const d=Math.ceil(q.unit*1.5);S.hp-=d;out.lines.push(`你逃了，但被${en.n}追上咬了一口。HP −${d}`)}
   else out.lines.push(`你甩開了${en.n}。`);
   S.enc=null;
@@ -308,8 +326,9 @@ function doCombo(q,out){
   }
   if(eff){applyEffect(eff,out);
     if(S.enc){
-      if(m.f==="威懾"){out.lines.push(`${S.enc.n}被嚇跑了。`);S.enc=null}
-      else if(["投射","附加","領域","強化"].includes(m.f)){out.lines.push(`這一招打倒了${S.enc.n}。`);loot(out,out.res==="big");S.enc=null}
+      const en=S.enc;
+      if(m.f==="威懾"){out.lines.push(`${en.n}被嚇跑了。`);S.enc=null;if(en.raid)raidWon(q,out,en)}
+      else if(["投射","附加","領域","強化"].includes(m.f)){out.lines.push(`這一招打倒了${en.n}。`);loot(out,out.res==="big");S.enc=null;if(en.raid)raidWon(q,out,en)}
     }
   }else if(S.enc){S.hp-=q.unit;out.lines.push(`${S.enc.n}趁機撲上來。HP −${q.unit}`)}
 }
@@ -394,7 +413,7 @@ function startCh2(here){
   S.pending=null;
   if(!here){log("你決定先不定下來。（隨時可以從選單建立據點）");return}
   S.ch=2;S.nest="F";S.base=S.at;S.stats.nestDay.F=S.day;
-  log(LETTER_CH2,"letter");log(`你在${S.at}建立了 F 級據點。第二章開始。`,"good");
+  log(`你在${S.at}建立了 F 級據點。第二章開始。升級據點會引來魔物；365 天後魔王（BP 99）復活。`,"good");
 }
 function canBuild(){if(S.ch<2||S.nest==null)return null;const t=nestIdx()+1;if(t>6)return null;const c=NEST_COST[t];
   return {target:GRADES[t],cost:c,ok:Object.entries(c).every(([m,n])=>(S.mats[m]||0)>=n)}}
@@ -402,8 +421,12 @@ function build(){
   const b=canBuild();if(!b||!b.ok)return {err:"材料不夠"};
   Object.entries(b.cost).forEach(([m,n])=>S.mats[m]-=n);
   S.nest=b.target;S.stats.nestDay[b.target]=S.day;count(S.stats.actions,"upgrade");
-  log(`據點升到 ${b.target} 級。馬上有東西盯上了它。`,"act");
-  S.pending={type:"raid",lv:b.target};advance(4);return {ok:true};
+  log(`據點升到 ${b.target} 級。`,"act");advance(4);
+  if(S.over)return {ok:true};
+  const en=raidMonster(b.target);S.enc=en;S.stats.enc++;
+  log(`襲擊！${en.n}（${en.lv} 級）被據點引過來了。`,"bad");
+  if(!S.seen.some(x=>x.n===en.t.n)){S.seen.push({n:en.t.n,e:en.t.e.slice(),part:en.t.part,from:en.n,lv:en.lv,used:false});log(`你看見牠使出「${en.t.n}」。（記下來了，可以拿來組合偷學）`)}
+  return {ok:true};
 }
 function moveBase(){
   if(S.ch<2)return {err:"還沒有據點"};

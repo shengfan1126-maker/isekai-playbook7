@@ -66,8 +66,8 @@ function renderPanel(){
       if($("fl"))$("fl").onclick=()=>{failChoice(true);refresh()};$("dd").onclick=()=>{failChoice(false);refresh()};return}
     P.innerHTML=h+`<div class="box">${t==="boss"?"365 天到了。魔王復活了，朝你走來。":`襲擊！有東西攻擊你剛升到 ${S.pending.lv} 級的據點。`}<br><button class="pri" id="go">迎擊</button></div>`;
     $("go").onclick=()=>openDraft({act:t==="boss"?"boss":"raid"});return}
-  if(S.enc&&!draft){P.innerHTML=h+`<div class="box enc"><b>遭遇：${esc(S.enc.n)}（${S.enc.lv} 級）</b>　你是 ${S.lv} 級。<br><span class="note">牠會「${esc(S.enc.t.n)}」。打、用組合、或撤退（撤退也要付代價，例如丟下東西）。也可以直接在上面打字說你要怎麼做。</span>
-    <div class="row2"><button id="ef">戰鬥</button><button id="ec">組合</button><button id="er">撤退</button></div></div>`;
+  if(S.enc&&!draft){const R=S.enc.raid;P.innerHTML=h+`<div class="box enc"><b>${R?"據點襲擊":"遭遇"}：${esc(S.enc.n)}（${S.enc.lv} 級）</b>　你是 ${S.lv} 級。<br><span class="note">牠會「${esc(S.enc.t.n)}」。${R?"這是關鍵戰（淨優勢最多 0）。打輸據點被攻破；逃走等於放棄據點（F 級重來、物資剩一半）。":"打、用組合、或撤退（撤退也要付代價，例如丟下東西）。"}也可以直接在上面打字說你要怎麼做。</span>
+    <div class="row2"><button id="ef">${R?"迎擊":"戰鬥"}</button><button id="ec">組合</button><button id="er">${R?"放棄據點逃走":"撤退"}</button></div></div>`;
     $("ef").onclick=()=>openDraft({act:"fight"});$("ec").onclick=()=>openDraft({act:"combo",obj:{t:"enemy",n:S.enc.n}});$("er").onclick=()=>openDraft({act:"retreat"});return}
   if(!draft&&canReroll()){
     P.innerHTML=h+`<div class="box"><b>開局技能</b>　不喜歡就換，換到喜歡為止。做第一件事之後就不能換了。`+
