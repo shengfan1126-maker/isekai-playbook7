@@ -57,7 +57,13 @@ const bagMax=()=>8+(S.items.some(i=>i.n==="背包")?4:0);
 const bagFull=()=>S.items.length>=bagMax();
 /* 升級戰裡「用掉 1 件物品」能用的：武器先、再來藥；不會用掉防具和背包 */
 const payItems=()=>S.items.filter(i=>i.k==="white"||i.k==="potion");
-const gainExist=n=>{S.exist=Math.min(EXIST_MAX(S.lv),S.exist+n);return n};
+/* 存在值滿了自動進化，多出來的帶到下一級；進化當下 HP、MP 回滿 */
+const gainExist=n=>{S.exist+=n;autoEvolve();return n};
+function autoEvolve(){
+  while(S.lv!=="S"&&S.exist>=EXIST_MAX(S.lv)){S.exist-=EXIST_MAX(S.lv);S.lv=GRADES[gIdx(S.lv)+1];if(S.stats.lvDay[S.lv]==null)S.stats.lvDay[S.lv]=S.day;
+    S.hp=hpMax();S.mp=mpMax();log(`★ 進化！你現在是 ${S.lv} 級（BP ${bpOf()}），HP、MP 回滿。`,"good")}
+  if(S.lv==="S")S.exist=Math.min(S.exist,EXIST_MAX("S"));
+}
 
 /* ───── 開局 ───── */
 function newGame(){
@@ -66,7 +72,7 @@ function newGame(){
     skills:sk,store:[],items:[],mats:{},at:"林邊空地",places:["林邊空地"],
     needs:{食物:false,火:false,水:false,避難所:false},fire:false,shelterAt:null,
     tags:{飢餓:false,會冷:false,疾病:0},scars:[],thirst:0,drank:false,
-    seen:[],frags:[],enc:null,pending:null,over:null,nest:null,base:null,log:[],pts:0,fac:[],facPick:null,raid:null,
+    seen:[],frags:[],enc:null,pending:null,over:null,nest:null,base:null,log:[],pts:0,fac:[],facPick:null,raid:null,bases:[],
     stats:{actions:{},skillUse:{},combos:{try:0,learn:0,frag:0},enc:0,ch1Day:null,nestDay:{},lvDay:{},raids:[],ooc:{add:0,remove:0,edit:0}}};
   S.hp=hpMax();
   log(OPENING,"letter");
@@ -220,7 +226,8 @@ function exec(q,p){
   if(!S.over&&!["raid","boss"].includes(q.act))advance(q.hours);
   return out;
 }
-function die(out,why){S.over={end:"死亡",day:S.day};S.pending=null;S.enc=null;S.raid=null;out&&out.lines.push(why);log(why,"end")}
+function die(out,why){if(S.raid)S.stats.raids.push({day:S.day,lv:S.raid.kind,res:"dead",won:S.raid.won,lost:S.raid.lost});
+  S.over={end:"死亡",day:S.day};S.pending=null;S.enc=null;S.raid=null;out&&out.lines.push(why);log(why,"end")}
 
 function doGather(q,out){
   const P=placeOf();
@@ -258,7 +265,7 @@ function doRetreat(q,out){
   const en=S.enc;
   if(en.raid){if(out.res==="fail"){const d=Math.min(S.hp-1,Math.ceil(q.unit*1.5));S.hp-=d;out.lines.push(`你逃了，但被${en.n}追上。HP −${d}`)}
     S.stats.raids.push({day:S.day,lv:S.raid.kind,res:"retreat",won:S.raid.won,lost:S.raid.lost});count(S.stats.actions,"flee");
-    out.lines.push(`你放棄據點逃走。`);loseBase(`${en.n}佔了據點。`);return}
+    S.raid=null;S.enc=null;out.lines.push(`你放棄據點逃走。${en.n}佔了據點。`);S.pending={type:"failchoice",why:"retreat"};return}
   if(out.res==="fail"){const d=Math.ceil(q.unit*1.5);S.hp-=d;out.lines.push(`你逃了，但被${en.n}追上咬了一口。HP −${d}`)}
   else out.lines.push(`你甩開了${en.n}。`);
   S.enc=null;
@@ -343,19 +350,30 @@ function doCombo(q,out){
 /* 碎片兌換：3 片同大類 → 同大類三選一；10 片任意 → 任意三選一 */
 function fragCounts(){const c={};S.frags.forEach(f=>f.cats.forEach(x=>count(c,x)));return c}
 function canExchange(){const c=fragCounts();return {cats:Object.keys(c).filter(k=>c[k]>=3),any:S.frags.length>=10}}
+/* 天生：看過、還沒偷學的魔物技巧，用人類方式替換出來的版本 */
+function stealPool(){
+  const out=[];
+  S.seen.filter(sn=>!sn.used).forEach(sn=>{const subs=PART_SUB[sn.part]||{};
+    Object.entries(subs).forEach(([mv,suf])=>{const m=MOVES.find(x=>x.n===mv);const nm=(sn.e[0]||"")+suf;
+      if(m&&!owned(nm))out.push({n:nm,e:sn.e.slice(),c:uniq([FORM_CAT[m.f],"天生"]),f:m.f,d:`偷學${sn.from}的「${sn.n}」，用人類的方式做出來。`,steal:sn.n})})});
+  return out;
+}
 function drawChoices(cat){
-  let pool=COMBOS.filter(x=>!owned(x.n)&&(!cat||x.c.includes(cat)));
-  const names=[];pool=shuffle(pool).filter(x=>!names.includes(x.n)&&names.push(x.n));
-  const out=pool.slice(0,3);
+  const names=[],out=[];
+  const add=list=>shuffle(list).forEach(x=>{if(out.length<3&&!names.includes(x.n)&&!owned(x.n)){names.push(x.n);out.push(x)}});
+  if(cat==="天生"||!cat)add(stealPool());
+  add(COMBOS.filter(x=>!cat||x.c.includes(cat)));
   if(out.length<3&&cat&&!owned(FUSED_NAME[cat]||cat+"心得")){
     const es=uniq(S.frags.filter(f=>f.cats.includes(cat)).flatMap(f=>f.e)).slice(0,2);
-    out.push({n:FUSED_NAME[cat]||cat+"心得",c:[cat],e:es.length?es:["生長"],d:"碎片累積下來的心得。"});
+    add([{n:FUSED_NAME[cat]||cat+"心得",c:[cat],e:es.length?es:["生長"],d:"碎片累積下來的心得。"}]);
   }
+  if(out.length<3)add(COMBOS.concat(stealPool()));   /* 這一類抽光了：用別類補滿 3 個 */
   return out;
 }
 function exchange(cat,choice){
   if(cat){let k=0;S.frags=S.frags.filter(f=>{if(k<3&&f.cats.includes(cat)){k++;return false}return true})}
   else S.frags.splice(0,10);
+  if(choice.steal){const sn=S.seen.find(x=>x.n===choice.steal);if(sn)sn.used=true}
   const where=learnSkill(choice,"F");gainExist(1);
   log(`碎片兌換：學會【${choice.n}】${where==="倉庫"?"（放進倉庫）":""}`,"good");
   const out={lines:[]};applyEffect({e:choice.e,f:choice.f||"",n:choice.n,g:choice.g},out);
@@ -421,14 +439,25 @@ function sleep(){count(S.stats.actions,"sleep");log("你睡了。");night(true);
 function startCh2(here){
   S.pending=null;
   if(!here){log("你決定先不定下來。（隨時可以從選單建立據點）");return}
-  S.ch=2;S.nest="F";S.base=S.at;S.stats.nestDay.F=S.day;S.pts=S.pts||0;S.fac=S.fac||[];
+  S.ch=2;S.nest="F";S.base=S.at;S.bases=[S.at];S.stats.nestDay.F=S.day;S.pts=S.pts||0;S.fac=S.fac||[];
   log(`你在${S.at}建立了 F 級據點。第二章開始。捐物資換點數升級據點；每升一級，你的異香會引來大軍攻城。365 天後魔王（BP 99）復活。`,"good");
   offerFac();
 }
 /* 點數 */
 const ptsOf=m=>PTS_OF[m]||1;
-function donate(m,n){n=Math.min(n,S.mats[m]||0);if(n<1)return {err:"沒有"};S.mats[m]-=n;const p=n*ptsOf(m);S.pts+=p;log(`捐了${m}×${n}，據點點數 +${p}（${S.pts}）。`);return {ok:true}}
-function donateItem(i){const it=S.items[i];if(!it)return {err:"沒有"};S.items.splice(i,1);S.pts+=ITEM_PTS;log(`捐了${it.n}，據點點數 +${ITEM_PTS}（${S.pts}）。`);return {ok:true}}
+/* 同一個小時連續捐，合併成一行紀錄 */
+function logDonate(what,p){const l=S.log[S.log.length-1];
+  if(l&&l.don&&l.day===S.day&&l.hour===S.hour){l.don.p+=p;what.forEach(([n,k])=>l.don.m[n]=(l.don.m[n]||0)+k)}
+  else{const d={p,m:{}};what.forEach(([n,k])=>d.m[n]=(d.m[n]||0)+k);log("");S.log[S.log.length-1].don=d}
+  const L=S.log[S.log.length-1];L.t=`捐給據點：${Object.entries(L.don.m).map(([n,k])=>`${n}×${k}`).join("、")}，點數 +${L.don.p}（現在 ${S.pts}）。`}
+function donate(m,n){n=Math.min(n,S.mats[m]||0);if(n<1)return {err:"沒有"};S.mats[m]-=n;const p=n*ptsOf(m);S.pts+=p;logDonate([[m,n]],p);return {ok:true}}
+function donateItem(i){const it=S.items[i];if(!it)return {err:"沒有"};S.items.splice(i,1);S.pts+=ITEM_PTS;logDonate([[it.n,1]],ITEM_PTS);return {ok:true}}
+/* 捐到夠升下一級：先捐骨頭、獸皮、魔核，再木材、石片、草，最後才是食物（留 5 份） */
+function donateToNext(){const b=canBuild();if(!b||S.pts>=b.need)return {err:"已經夠了"};
+  const order=["骨頭","獸皮","魔核","木材","石片","草",...FOODS];
+  for(const m of order){if(S.pts>=b.need)break;const keep=FOODS.includes(m)?Math.max(0,5-(foodCount()-(S.mats[m]||0))):0;
+    let have=(S.mats[m]||0)-Math.max(0,keep);if(have<1)continue;const n=Math.min(have,Math.ceil((b.need-S.pts)/ptsOf(m)));if(n>0)donate(m,n)}
+  return S.pts>=b.need?{ok:true}:{err:`還差 ${b.need-S.pts} 點`}}
 function canBuild(){if(S.ch<2||S.nest==null)return null;const t=nestIdx()+1;if(t>6)return null;
   return {target:GRADES[t],need:NEST_PTS[t],ok:S.pts>=NEST_PTS[t]&&!S.raid&&!S.enc}}
 function build(){
@@ -484,8 +513,9 @@ function raidStep(win,out){
   const R=S.raid,b=R.list[R.i];S.enc=null;
   if(win){R.won++;const ex=1+Math.max(0,(b.king?7:gIdx(b.lv))-pg())+(out.res==="big"?1:0);out.gain.push(`存在值+${gainExist(ex)}`)}
   else{R.lost++;out.lines.push(`這一場輸了（${R.lost}/${R.max}）。`)}
-  if(S.hp<=0)return;
-  if(R.lost>R.max||(b.king&&!win)){
+  if(S.hp<=0&&R.kind==="boss")return;            /* 魔王戰倒下＝死 */
+  const down=S.hp<=0;if(down){S.hp=1;out.lines.push("你倒下了，被大軍拖出了據點。")}
+  if(down||R.lost>R.max||(b.king&&!win)){
     S.stats.raids.push({day:S.day,lv:R.kind,res:"fail",won:R.won,lost:R.lost});S.raid=null;
     out.lines.push(R.kind==="boss"?"你擋不住了。":"據點被攻破了。");S.pending={type:"failchoice",boss:R.kind==="boss"};return}
   R.i++;
@@ -501,17 +531,20 @@ function raidStep(win,out){
   offerFac();
   if(S.hour>=24)night(false);
 }
-function loseBase(why){
+/* 搬家：只能搬到還沒當過據點的地方（地點只有幾個，搬一次少一個） */
+const moveTargets=()=>S.places.filter(p=>!(S.bases||[]).includes(p));
+function relocate(to,why){
   (S.fac||[]).forEach(f=>{if(f.s)facBack(f.s)});S.fac=[];S.facPick=null;S.raid=null;S.enc=null;S.pts=0;
-  S.nest="F";Object.keys(S.mats).forEach(m=>S.mats[m]=Math.floor(S.mats[m]/2));
-  log(`${why}設施全毀，你帶著一半的東西逃了出去，據點從 F 級重來。`,"end");offerFac();
-  if(S.hour>=24)night(false);
-}
-function moveBase(){
-  if(S.ch<2)return {err:"還沒有據點"};
-  (S.fac||[]).forEach(f=>{if(f.s)facBack(f.s)});S.fac=[];S.facPick=null;S.pts=0;
   Object.keys(S.mats).forEach(m=>S.mats[m]=Math.floor(S.mats[m]/2));
-  S.nest="F";S.base=S.at;log(`你把據點搬到${S.at}。據點變回 F 級，設施和點數歸零，物資只帶走一半。`,"act");offerFac();advance(6);return {ok:true};
+  S.nest="F";S.base=to;S.at=to;(S.bases=S.bases||[]).push(to);
+  const left=moveTargets().length;
+  log(`${why}你把據點搬到${to}，從 F 級重來。設施和點數歸零，物資只帶走一半。${left?`還能搬的地方：${left} 個。`:"<b>這是最後一個能搬的地方了。</b>"}`,"act");
+  offerFac();
+}
+function moveBase(to){
+  if(S.ch<2)return {err:"還沒有據點"};
+  if(!moveTargets().includes(to))return {err:"只能搬到還沒當過據點、已經找到的地方"};
+  relocate(to,"");advance(6*(1+scarN("腿")));return {ok:true};
 }
 /* 萬靈藥：據點 S 級後開發，治好一處捨身傷 */
 const CURE_COST={魔核:5,草:5};
@@ -521,12 +554,14 @@ function makeCure(){if(S.nest!=="S")return {err:"據點要 S 級才能開發萬�
 function useCure(part){const i=S.items.findIndex(x=>x.k==="cure");if(i<0)return {err:"沒有萬靈藥"};const j=S.scars.indexOf(part);if(j<0)return {err:"這個部位沒有捨身傷"};
   S.items.splice(i,1);S.scars.splice(j,1);log(`喝下萬靈藥，${part}的捨身傷好了。`,"good");return {ok:true}}
 function startBoss(){if(!S.pending||S.pending.type!=="boss")return;S.pending=null;startRaid("boss")}
-function failChoice(flee){
-  const boss=S.pending&&S.pending.boss;S.pending=null;
-  if(!flee||boss){die(null,boss?"魔王的大軍淹沒了你。":"你死了。");return}
-  count(S.stats.actions,"flee");loseBase("據點毀了。");
+/* 升級戰敗（被攻破、倒下、中途逃走）：選一個沒當過據點的地方搬家，或陣亡。沒地方可搬就只能陣亡 */
+function failChoice(to){
+  const boss=S.pending&&S.pending.boss;
+  if(to===true)to=moveTargets()[0];      /* 舊介面／機器人：搬到第一個能去的地方 */
+  if(!boss&&to&&moveTargets().includes(to)){S.pending=null;count(S.stats.actions,"flee");relocate(to,"據點毀了。");if(S.hour>=24)night(false);return}
+  S.pending=null;die(null,boss?"魔王的大軍淹沒了你。":"你沒有再逃。據點和你一起倒下了。");
 }
-function canEvolve(){return S.lv!=="S"&&S.exist>=EXIST_MAX(S.lv)}
+function canEvolve(){return false}  /* 改成自動進化（autoEvolve） */
 function evolve(){if(!canEvolve())return {err:"存在值還沒滿"};S.lv=GRADES[gIdx(S.lv)+1];S.exist=0;S.hp=hpMax();S.stats.lvDay[S.lv]=S.day;
   log(`你進化了，現在是 ${S.lv} 級（BP ${bpOf()}）。`,"good");advance(2);return {ok:true}}
 function usePotion(){const i=S.items.findIndex(x=>x.k==="potion");if(i<0)return {err:"沒有藥"};const it=S.items.splice(i,1)[0];

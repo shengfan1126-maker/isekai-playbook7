@@ -10,7 +10,10 @@ function save(){ls.s(SAVE_KEY,JSON.stringify(S))}
 function load(){try{const t=ls.g(SAVE_KEY);if(t){S=JSON.parse(t);return S&&S.ver===VER}}catch(e){}return false}
 function heal(){S.store=S.store||[];S.frags=S.frags||[];S.seen=S.seen||[];S.scars=S.scars||[];S.items=S.items||[];S.mats=S.mats||{};
   S.scars=S.scars.map(x=>OLD_SCAR[x]||x);S.pts=S.pts||0;S.fac=S.fac||[];S.facPick=S.facPick||null;S.raid=S.raid||null;
-  if(S.pending&&S.pending.type==="raid")S.pending=null;if(S.enc&&S.enc.raid&&!S.raid)S.enc=null;offerFac()}
+  if(S.ch>=2&&!S.bases){S.bases=[];   /* 舊存檔：從紀錄找出當過據點的地方 */
+    S.log.forEach(l=>{const m=l.t.match(/你在(.+?)建立了 F 級據點/)||l.t.match(/你把據點搬到(.+?)[。，]/);if(m&&!S.bases.includes(m[1]))S.bases.push(m[1])});
+    if(S.base&&!S.bases.includes(S.base))S.bases.push(S.base)}
+  if(S.pending&&S.pending.type==="raid")S.pending=null;if(!S.over)autoEvolve();if(S.enc&&S.enc.raid&&!S.raid)S.enc=null;offerFac()}
 
 /* ───── 狀態 ───── */
 function renderStatus(){
@@ -67,8 +70,11 @@ function renderPanel(){
     if(t==="ch2"){P.innerHTML=h+`<div class="box"><b>第一章完成</b><br>食物、火、水、避難所都有了。要在「${esc(S.at)}」建立據點，進入第二章嗎？<br><span class="note">第二章：據點升級會被襲擊；搬家會讓據點變回 F 級、物資減半。</span>
       <p><button class="pri" id="c2y">在這裡建立據點</button> <button id="c2n">先不要</button></p></div>`;
       $("c2y").onclick=()=>{startCh2(true);refresh()};$("c2n").onclick=()=>{startCh2(false);refresh()};return}
-    if(t==="failchoice"){P.innerHTML=h+`<div class="box">${S.pending.boss?"你被消滅了。":"據點毀了，你還活著。"}<br>${S.pending.boss?"":`<button id="fl">帶一半的東西逃走，據點從 F 重來</button> `}<button class="bad" id="dd">放棄（死亡）</button></div>`;
-      if($("fl"))$("fl").onclick=()=>{failChoice(true);refresh()};$("dd").onclick=()=>{failChoice(false);refresh()};return}
+    if(t==="failchoice"){const T=S.pending.boss?[]:moveTargets();
+      P.innerHTML=h+`<div class="box">${S.pending.boss?"你被消滅了。":S.pending.why==="retreat"?"你放棄了據點。":"據點被攻破了，你還有一口氣。"}<br>`+
+        (S.pending.boss?"":T.length?`<span class="note">搬家：帶一半的東西，到一個<b>還沒當過據點</b>的地方從 F 級重來（設施全毀、點數歸零）。搬過的地方不能再回去。</span><br>`+T.map(n=>`<button data-mv="${esc(n)}">搬到${esc(n)}</button> `).join(""):`<span class="note">你找到的地方都當過據點了，已經沒有地方可以搬。</span><br>`)+
+        `<button class="bad" id="dd">陣亡</button></div>`;
+      P.querySelectorAll("[data-mv]").forEach(b=>b.onclick=()=>{failChoice(b.dataset.mv);refresh()});$("dd").onclick=()=>{failChoice(false);refresh()};return}
     P.innerHTML=h+`<div class="box">365 天到了。魔王（BP 99）復活，帶著六個方位的大軍朝你來了。<br><span class="note">六場（每個方位一支軍團＋一隻 S 級魔物），最後是魔王。輸 4 場或輸給魔王就結束。魔王戰逃不掉。</span><br><button class="pri" id="go">迎擊</button></div>`;
     $("go").onclick=()=>{startBoss();refresh()};return}
   if(S.facPick&&!draft&&!S.enc){
@@ -166,8 +172,8 @@ function menuClick(k){
   if(k==="hunt"||k==="rest"){exec(planOf({act:k}),{});refresh();return}
   if(k==="sleep"){sleep();refresh();return}
   if(k==="ch2"){S.pending={type:"ch2"};refresh();return}
-  if(k==="build"){build();refresh();return}
-  if(k==="movebase"){moveBase();refresh();return}
+  if(k==="build")return sheetBuild();
+  if(k==="movebase")return sheetMove();
   if(k==="evolve"){evolve();refresh();return}
   if(k==="potion"){usePotion();refresh();return}
   if(k==="cure")return sheetCure();
@@ -231,8 +237,9 @@ function sheetOoc(){
 }
 function sheetBase(){
   const b=canBuild(),lock=!!(S.enc||S.pending||busy);
-  let h=`<h3>據點 ${S.nest} 級（${esc(S.base||"")}）</h3><p>點數 <b>${S.pts}</b>${b?`　升到 ${b.target} 要 ${b.need}`:"　已是 S"}</p>
-  <div class="note">捐物資換點數：一般材料 1 點、獸皮 2、魔核 4、物品 ${ITEM_PTS}。捐出去就沒了。升一級就會引來一場升級戰。</div><table>`+
+  let h=`<h3>據點 ${S.nest} 級（${esc(S.base||"")}）</h3><p class="note">還能搬的地方：${moveTargets().length?esc(moveTargets().join("、")):"沒有"}</p><p>點數 <b>${S.pts}</b>${b?`　升到 ${b.target} 要 ${b.need}`:"　已是 S"}</p>
+  <div class="note">捐物資換點數：一般材料 1 點、獸皮 2、魔核 4、物品 ${ITEM_PTS}。捐出去就沒了。升一級就會引來一場升級戰。</div>
+  ${b&&S.pts<b.need?`<p><button id="dnext" ${lock?"disabled":""}>捐到夠升 ${b.target}（還差 ${b.need-S.pts} 點）</button> <span class="note">先捐骨頭、獸皮、魔核，再木材、石片、草，食物留 5 份。</span></p>`:""}<table>`+
   MATS.filter(m=>S.mats[m]).map(m=>`<tr><td>${m}×${S.mats[m]}</td><td class="note">${ptsOf(m)} 點</td><td><button data-dn="${m}|1" ${lock?"disabled":""}>捐 1</button> <button data-dn="${m}|h" ${lock?"disabled":""}>捐一半</button> <button data-dn="${m}|a" ${lock?"disabled":""}>全捐</button></td></tr>`).join("")+`</table>`;
   if(S.items.length)h+=`<p class="note">物品（背包 ${S.items.length}/${bagMax()}）：</p><p>`+S.items.map((it,i)=>`<button data-di="${i}" ${lock?"disabled":""}>捐 ${esc(it.n)}</button>`).join(" ")+`</p>`;
   if(S.nest==="S")h+=`<p><button id="mkcure" ${lock?"disabled":""}>開發萬靈藥（魔核 5、草 5，4 小時）</button> <span class="note">治好一處捨身傷。</span></p>`;
@@ -243,10 +250,39 @@ function sheetBase(){
   sheet(h);
   const R=()=>{save();sheetBase()};
   $("sbody").querySelectorAll("[data-dn]").forEach(x=>x.onclick=()=>{const [m,k]=x.dataset.dn.split("|");const n=k==="1"?1:k==="h"?Math.ceil((S.mats[m]||0)/2):(S.mats[m]||0);donate(m,n);R()});
+  if($("dnext"))$("dnext").onclick=()=>{const r=donateToNext();if(r.err)toast=r.err;R()};
   if($("mkcure"))$("mkcure").onclick=()=>{const r=makeCure();if(r.err)toast=r.err;R()};
   $("sbody").querySelectorAll("[data-di]").forEach(x=>x.onclick=()=>{donateItem(+x.dataset.di);R()});
   $("sbody").querySelectorAll("[data-fo]").forEach(x=>x.onclick=()=>{facOut(+x.dataset.fo);R()});
   $("sbody").querySelectorAll("[data-fs]").forEach(x=>x.onchange=()=>{if(x.value!=="")facPut(+x.dataset.fs,+x.value);R()});
+}
+/* 升級前確認：告訴玩家要來什麼、自己現在的狀態 */
+function sheetBuild(){
+  const b=canBuild();if(!b||!b.ok)return;
+  const P=RAID_PLAN[b.target],n=P.rounds||(P.army+P.mon.length),lose=Math.floor((n-1)/2)+1;
+  const what=P.rounds?`一隻 ${P.mon} 級個體，${P.rounds} 回合`:`${P.army} 場 ${b.target} 級軍隊＋${P.mon.map(g=>g+" 級").join("、")}魔物（${n} 場）`;
+  const weap=S.items.filter(i=>i.k==="white").length,pot=S.items.filter(i=>i.k==="potion").length,pay=S.items.filter(i=>i.k==="white"||i.k==="potion").length;
+  const unit=hpUnit(true),warn=[];
+  if(S.hp<hpMax())warn.push(`HP 沒滿（${S.hp}/${hpMax()}）。輸一場扣 ${unit}，${S.hp<=unit?"<b>輸一場就會死</b>":`大約輸 ${Math.ceil(S.hp/unit)} 場會死`}。`);
+  if(S.mp<mpMax())warn.push(`MP 沒滿（${S.mp}/${mpMax()}）。用技能一場扣 1，付代價一次扣 2。`);
+  if(!weap)warn.push("沒有武器（用武器一場 +1）。");
+  if(!pot)warn.push("沒有藥。");
+  const top=P.rounds?P.mon:P.mon.reduce((a,g)=>gIdx(g)>gIdx(a)?g:a);
+  if(gIdx(top)-gIdx(S.lv)>=2)warn.push(`你是 ${S.lv} 級，對手最高 ${top} 級，差 ${gIdx(top)-gIdx(S.lv)} 級。`);
+  if(!moveTargets().length)warn.push("已經沒有能搬的地方：這一戰輸了就是陣亡。");
+  if(S.hour>=18)warn.push("天快黑了，打完才能睡（升級戰中間不能睡）。");
+  sheet(`<h3>升級據點 → ${b.target}？</h3>
+  <p>升級後<b>馬上</b>開打：${what}。輸 ${lose} 場或 HP 歸零，據點被攻破；中途逃走＝放棄據點。被攻破只能搬家（去沒當過據點的地方）或陣亡。還能搬的地方：${moveTargets().length?esc(moveTargets().join("、")):"<b>沒有了，被攻破就是陣亡</b>"}。</p>
+  <p class="note">你現在：${S.lv} 級，HP ${S.hp}/${hpMax()}，MP ${S.mp}/${mpMax()}，武器 ${weap}、藥 ${pot}（可付代價的物品 ${pay} 件）；運作中的設施 ${facOn().length} 座（擋 ${facBlock()} 條劣勢）。</p>
+  ${warn.length?`<div class="box enc"><b>還沒準備好：</b><br>${warn.join("<br>")}<br><span class="note">先睡一覺、做武器和藥再來比較好。</span></div>`:`<p>準備好了。</p>`}
+  <div class="row2"><button class="${warn.length?"":"pri"}" id="bgo">升級，開打</button><button class="${warn.length?"pri":""}" id="bno">先準備</button></div>`);
+  $("bgo").onclick=()=>{closeSheet();build();refresh()};$("bno").onclick=()=>closeSheet();
+}
+function sheetMove(){
+  const T=moveTargets();
+  sheet(`<h3>搬家</h3><div class="note">據點變回 F 級，設施全毀、點數歸零，物資只帶走一半，花 6 小時。只能搬到<b>還沒當過據點</b>的地方，搬過的不能再回去；升級戰被攻破時也要從這些地方選，沒地方可搬就只能陣亡。</div>
+  <p>當過據點：${esc((S.bases||[]).join("、"))}</p>`+(T.length?T.map(n=>`<p><button data-mv="${esc(n)}">搬到${esc(n)}</button></p>`).join(""):"<p>沒有可以搬的地方。去探索找新地方。</p>"));
+  $("sbody").querySelectorAll("[data-mv]").forEach(b=>b.onclick=()=>{const r=moveBase(b.dataset.mv);if(r&&r.err)toast=r.err;save();closeSheet();refresh()});
 }
 function sheetCure(){
   sheet(`<h3>治傷（萬靈藥 ${S.items.filter(i=>i.k==="cure").length} 瓶）</h3><div class="note">一瓶治好一處捨身傷。</div>`+
