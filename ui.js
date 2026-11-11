@@ -115,7 +115,7 @@ function renderPanel(){
   if(it.act==="craft")f+=`<label class="ck">做什麼 ${sel("dcr",[["","（選一個）"]].concat(RECIPES.map(r=>[r.n,`${r.n}（${Object.entries(r.need).map(([m,n])=>m+n).join("＋")}）`])),it.craft)}</label>`;
   if(it.act==="move")f+=`<label class="ck">去哪 ${sel("dpl",[["","（選一個）"]].concat(S.places.filter(n=>n!==S.at).map(n=>{const P=placeOf(n);return [n,n+(KIND_WORD[P.kind]?`（${KIND_WORD[P.kind]}）`:"")]})),it.place||"")}</label>`;
   const step=(k,t)=>`<div class="step"><span>${t}</span><button data-s="${k}-">−</button><span>${d.p[k]}/${q.caps[k]}</span><button data-s="${k}+">＋</button></div>`;
-  const sum=sumPick(d.p),res=d.shesh?"大成功（捨身）":sum<q.need?"失敗":sum<q.bigAt?"成功":"大成功";
+  const sum=sumPick(d.p),res=d.dance&&q.dance?"成功（舞動代打）":d.shesh?"大成功（捨身）":sum<q.need?"失敗":sum<q.bigAt?"成功":"大成功";
   const en=S.enc&&["fight","retreat","combo"].includes(it.act)?`　對手：${esc(S.enc.n)}（${S.enc.lv}）`:"";
   h+=`<div class="box"><b>${ACT_NAME[it.act]||it.act}</b>${en}${d.said?`<div class="note">我理解成：${esc(it.say||d.said)}</div>`:""}${f}`;
   if(q.err)h+=`<div class="bad-t">${esc(q.err)}</div>`;
@@ -123,6 +123,7 @@ function renderPanel(){
     h+=`<div class="note">${esc(q.notes.join("；")||"沒有加成")}</div>
     <div>淨優勢 ${q.net} → 要付 <b>${q.need}</b> 項代價成功，<b>${q.bigAt}</b> 項大成功${q.key?"（關鍵戰）":""}${q.mand.mp?`　另扣 MP ${q.mand.mp}`:""}</div>
     ${d.shesh?"":step("hp","受傷 −"+q.unit+" HP")+step("mp","MP −2")+step("time","多花 2 小時")+itemPicker(q)}
+    ${q.dance?`<label class="ck"><input type="checkbox" id="ddc" ${d.dance?"checked":""}>讓${esc(q.dance.n)}替你打這一場（今天 1 次，不用付代價就算贏）</label>`:""}
     ${q.raid&&S.raid&&S.raid.shesh?`<div class="note">這場${S.raid.kind==="boss"?"魔王戰":"升級戰"}已經捨身過一次了。</div>`:`<label class="ck">捨身（拿一個部位的傷換大成功${q.raid?"，一場升級戰只能一次":""}）<select id="dsh"><option value="">不捨身</option>${SCAR_PARTS.map(p=>`<option value="${p}" ${d.shesh===p?"selected":""}>${p}：${SCAR_D[p]}${scarN(p)?`（已傷 ${scarN(p)}）`:""}</option>`).join("")}<option value="rand" ${d.shesh===true?"selected":""}>隨便哪裡</option></select></label>`}
     ${S.scars.length?`<div class="note">身上的捨身傷：${S.scars.length} 處。打贏魔王時還有 ${BAD_END_SCARS} 處以上就是壞結局。據點 S 級後可以開發萬靈藥治好一處。</div>`:""}
     <div>目前 → <b>${res}</b>${it.act==="combo"?"（組合失敗也會得到碎片）":""}</div>`;
@@ -138,11 +139,12 @@ function renderPanel(){
   if($("dmv"))$("dmv").onchange=e=>{it.move=e.target.value;renderPanel()};
   if($("dcr"))$("dcr").onchange=e=>{it.craft=e.target.value;renderPanel()};
   if($("dpl"))$("dpl").onchange=e=>{it.place=e.target.value;renderPanel()};
+  if($("ddc"))$("ddc").onchange=e=>{d.dance=e.target.checked;renderPanel()};
   if($("dsh"))$("dsh").onchange=e=>{const v=e.target.value;d.shesh=v==="rand"?true:v||false;renderPanel()};
   if($("dno"))$("dno").onclick=()=>{draft=null;renderAll()};
   if(q.raid&&S.raid&&S.raid.shesh)d.shesh=false;
   $("dok").onclick=()=>{const q2=planOf(it);if(q2.err)return;
-    const out=exec(q2,Object.assign({},d.p,{shesh:d.shesh}));const said=d.said;draft=null;refresh();narrate(said)};
+    const out=exec(q2,Object.assign({},d.p,{shesh:d.shesh,dance:!!(d.dance&&q2.dance)}));const said=d.said;draft=null;refresh();narrate(said)};
 }
 function clampPick(){const q=planOf(draft.it);["hp","mp","time"].forEach(k=>draft.p[k]=Math.min(draft.p[k],q.caps[k]));draft.p.items=draft.p.items.slice(0,q.caps.item);draft.p.item=draft.p.items.length}
 /* 付物品：自己選付哪一件。魔法物品一天 3 次；同一場選第 2 次會壞。壞掉、丟失都不能修 */

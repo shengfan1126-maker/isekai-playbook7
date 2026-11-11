@@ -58,17 +58,23 @@ const potionWord=n=>{const p=POTIONS[n];return [p.hp&&`HP +${Math.round(p.hp*100
 
 /* ───── 魔法物品 ───── */
 function pickW(list){const t=list.reduce((a,x)=>a+(x.w||1),0);let r=rand()*t;for(const x of list){r-=(x.w||1);if(r<0)return x}return list[0]}
-function genMagic(lv,base){
-  const n=base||pick(Object.keys(GEAR));const it=mkGear(n,lv);const fx=pickW(MAGIC_FX);const mg={t:fx.t};
+function genMagic(lv,base,legend){
+  const n=base||pick(Object.keys(GEAR));const it=mkGear(n,lv);const fx=legend?pick(LEGEND_FX):pickW(MAGIC_FX);const mg={t:fx.t};
   if(fx.t==="skill"){const t=pick(COMBOS.concat(START_POOL));mg.v={n:t.n,e:t.e.slice(),c:t.c.slice(),f:t.f||"",d:t.d};mg.d=`附帶技能【${t.n}】（不扣 MP）`;it.n=`${t.n}・${n}`}
   else if(fx.t==="elem"||fx.t==="resist"){mg.v=pick(ELEMS);mg.d=fx.t==="elem"?`攻擊帶「${mg.v}」`:`抗「${mg.v}」：被${mg.v}屬性的對手打傷害減半`;it.n=(fx.t==="elem"?`${mg.v}之`:`抗${mg.v}`)+n}
-  else{mg.d=fx.d;it.n=FX_WORD[fx.t]+n}
+  else if(fx.t==="bane"){mg.v=pick(FOE_TYPES);mg.d=`屠${mg.v}：對${mg.v}優勢 +1`;it.n=`屠${mg.v}${n}`}
+  else{mg.d=fx.d;it.n=FX_WORD[fx.t]+n;if(legend)mg.legend=1}
   it.mg=mg;it.use=0;return it;
 }
 /* 附帶技能的魔法物品（裝備中、等級夠、今天還有次數），當成一個技能用 */
 function itemSkills(){return eqItems().filter(it=>it.mg&&it.mg.t==="skill").map(it=>({n:it.mg.v.n,e:it.mg.v.e,c:it.mg.v.c,f:it.mg.v.f,lv:it.lv,today:it.use||0,used:0,fromItem:it,d:`來自${it.n}`}))}
 
 /* ───── 相剋 ───── */
+/* 對手的類別（屠類）：魔王戰的「軍團＋魔物」兩個都算 */
+function foeTypes(){const e=S.enc;if(!e)return [];const out=[];
+  e.n.split("＋").forEach(nm=>{const t=Object.keys(MON_TYPE).find(k=>MON_TYPE[k].some(x=>nm.startsWith(x)));
+    out.push(t||(e.tag==="構裝"?"構裝":ARMIES.some(a=>a.n===nm)||e.nest?"類人":"魔物"))});
+  if(e.tag==="構裝")out.push("構裝");return uniq(out)}
 function foeEss(){const e=S.enc;if(!e)return [];return uniq((e.e||[]).concat(e.t&&e.t.e||[]))}
 function counterOf(mine,theirs){
   for(const a of mine)for(const b of (COUNTER[a]||[]))if(theirs.includes(b))return `${a}>${b}`;
@@ -78,7 +84,7 @@ function racialOwned(race){const n=RACES[race].sk.n;return owned(n)||(S.fac||[])
 /* 這一戰我方帶的屬性：用的技能＋武器／副手的魔法屬性 */
 function myEss(sks){
   let e=sks.flatMap(s=>s.e);
-  ["武器","副手"].forEach(k=>{const it=S.eq[k];if(it&&it.mg&&it.mg.t==="elem"&&gIdx(it.lv)>=Math.min(6,foeIdx()))e.push(it.mg.v)});
+  mgOn("elem").forEach(it=>e.push(it.mg.v));   /* 效果不綁欄位：身上任何一件屬性魔法物品都算 */
   return uniq(e);
 }
 /* 判定加成：武器、遠程、相剋、種族專屬技能、鞋子、飛行。回傳要加的 net，並寫進 q.notes */
@@ -101,11 +107,17 @@ function gearBonus(q,act,sks){
       if(uniqOn("noamb")){q.notes.push("月光長弓：先手，不用拉開距離")}
       else{net-=1;q.approach=1;q.notes.push(`${en.brk?"這一面被突破，敵人衝到身邊":"被近身突襲"}：遠程 +1 不算，還要多付 1 項拉開距離`)}}
     else if(en.r&&!ranged&&!close){q.approach=1;q.notes.push("對手在遠處：近戰要多付 1 項才能接近")}
+    /* 一般魔法效果（PF 參考） */
+    if(S.burst){net+=1;q.burstUsed=1;q.notes.push("爆發的餘勁 +1")}
+    if(mgOn("keen").length)q.smash=true;
+    const ft=foeTypes(),bn=mgOn("bane").find(it=>ft.includes(it.mg.v));
+    if(bn){net+=1;q.notes.push(`${bn.n}：屠${bn.mg.v} +1`)}
+    const vc=mgOn("vicious")[0];if(vc){net+=1;q.vicious=vc;q.notes.push(`${vc.n}：兇猛 +1（你也扣 HP 5%）`)}
     /* 聚落專屬魔法武器 */
-    if(uniqOn("holy")&&foeEss().includes("暗")){net+=1;q.notes.push("曙光長劍：聖光 +1")}
-    if(uniqOn("shadow")&&!close&&!en.raid){net+=1;q.notes.push("影子斗篷：你先出手 +1")}
-    if(uniqOn("tide")&&placeOf().water){net+=1;q.notes.push("潮汐三叉戟：有水的地方 +1")}
+    if(uniqOn("holy")&&foeEss().includes("暗")){net+=1;q.notes.push("曙光長劍：神聖 +1")}
     const lk=uniqOn("luck");if(lk&&mgUses(lk)>0)q.luck=lk;   /* 真的少付才記一次（game.js planOf） */
+    if(en.raid){const sp=uniqOn("speed");if(sp&&mgUses(sp)>0){q.speed=sp;q.notes.push("激流三叉戟：疾速，可以付「多花時間」")}
+      const dc=mgOn("dance").find(it=>!it.danced);if(dc&&!en.king)q.dance=dc;}
   }
   if(act==="retreat"){
     if(S.eq.鞋子){net+=1;q.notes.push(`${S.eq.鞋子.n} +1`)}
@@ -118,16 +130,22 @@ function gearBonus(q,act,sks){
 function uniqOn(t){return eqItems().find(it=>it.mg&&it.mg.t===t&&it.mg.race&&gIdx(it.lv)>=Math.min(6,foeIdx()))}
 /* 輸一場的傷害倍率：盾 −20%、衣服 −20%、頭 −10%；屬性抗性再減半 */
 function dmgMult(){
-  let m=1-(S.eq.副手&&gearOf(S.eq.副手).wt==="盾"?.2:0)-(S.eq.衣服?.2:0)-(S.eq.頭?.1:0);
+  let m=1-(S.eq.副手&&gearOf(S.eq.副手).wt==="盾"?.2:0)-(S.eq.衣服?.2:0)-(S.eq.頭?.1:0)-.2*mgOn("defend").length;
   const fe=foeEss();if(mgOn("resist").some(it=>fe.includes(it.mg.v)))m*=.5;
   return Math.max(.3,m);
 }
 /* 打完一場：下克上的裝備用完就壞 */
 function afterFight(q,out){
+  if(q.burstUsed)S.burst=0;
+  if(out.res==="big"&&mgOn("burst").length){S.burst=1;out.lines.push("爆發：餘勁還在，下一場 +1。")}
+  if(q.vicious){const d=Math.ceil(hpMax()*.05);S.hp-=d;out.paid.push(`兇猛反噬 HP −${d}`)}
+  if(out.res!=="fail"&&q.judge){const rg=mgOn("regen").length;if(rg){const h=Math.ceil(hpMax()*.1*rg);S.hp=Math.min(hpMax(),S.hp+h);out.gain.push(`再生 HP +${h}`)}}
   const w=q.useWeapon;if(!w||!S.enc&&!q.foe)return;
   const fi=Math.min(6,q.foe!=null?q.foe:foeIdx());   /* 魔王算 S 級 */
   if(gIdx(w.lv)<fi&&eqItems().includes(w)){loseItem(w);out.paid.push(`${w.n} 撐不住，壞了（${w.lv} 級打 ${GRADES[Math.min(6,fi)]} 級，不能修）`);spareWeapon(out)}
 }
+/* 輸一場受傷：錯位斗篷一天 3 次免傷 */
+function takeHit(d,out){const dp=uniqOn("displace");if(dp&&mgUses(dp)>0){dp.use=(dp.use||0)+1;out.lines.push(`錯位斗篷一晃，攻擊打在殘影上（今天第 ${dp.use}/3 次）。`);return 0}S.hp-=d;return d}
 /* 武器壞了：背包裡有別的武器就自動換上（同種類優先） */
 function spareWeapon(out){
   if(S.eq.武器)return;const prev=S.eq.副手&&gearOf(S.eq.副手).wt;
@@ -287,7 +305,7 @@ function specialWin(en,out,big){
     out.lines.push(d.fl>=d.max?`寶箱打開了。${en.dun}最深的一層也清空了，這裡空了。`:`寶箱打開了。往下還有 ${d.max-d.fl} 層。`);return}
   if(en.maze){const f=en.maze;S.maze.best=Math.max(S.maze.best||0,f);addMat("魔核",f);out.gain.push(`魔核×${f}`);
     if(f>=4){addMat("魔晶",f-3);out.gain.push(`魔晶×${f-3}`)}
-    if(rand()<.15+.08*f+(big?.2:0))gainItem(genMagic(lv),out);
+    if(rand()<.15+.08*f+(big?.2:0))gainItem(genMagic(lv,null,f>=6&&rand()<.3),out);   /* 第 6～7 層有機會出傳說級 */
     out.lines.push(`第 ${f} 層打通了。迷宮的牆慢慢合上，魔物會再長出來。`)}
 }
 
@@ -304,4 +322,6 @@ function worldFix(){
   /* 舊的白字：欄位空著就幫你穿上 */
   for(let i=S.items.length-1;i>=0;i--){const it=S.items[i];if(it.slot&&!S.eq[it.slot]&&canEquip(it)===true){S.eq[it.slot]=it;S.items.splice(i,1)}}
   if(S.places)S.places=S.places.filter(n=>placeOf(n));
+  /* v0.4.1 的影子斗篷、潮汐三叉戟換成新效果 */
+  S.items.concat(SLOTS.map(k=>S.eq[k]).filter(Boolean)).forEach(it=>{if(it.mg&&(it.mg.t==="shadow"||it.mg.t==="tide")){const r=it.mg.t==="shadow"?"亞人":"人魚";const u=RACE_ITEM[r];it.n=u.n;it.base=u.base;Object.assign(it,{slot:GEAR[u.base].slot,wt:GEAR[u.base].wt||null});it.mg={t:u.t,race:r,d:u.d}}});
 }

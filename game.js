@@ -55,7 +55,7 @@ const foodCount=()=>FOODS.reduce((a,m)=>a+(S.mats[m]||0),0);
 const addMat=(m,n)=>{if(n>0)S.mats[m]=(S.mats[m]||0)+n};
 const hasItem=k=>S.items.some(i=>i.k===k);
 const hasWeapon=()=>!!(S.eq&&S.eq.武器);
-const hpUnit=key=>Math.max(1,Math.ceil(hpMax()/4*(key?1.5:1)*(S.eq?dmgMult():1)));
+const hpUnit=key=>Math.max(1,Math.ceil(hpMax()/4*(key&&!(S.eq&&mgOn("fort").length)?1.5:1)*(S.eq?dmgMult():1)));
 const nestIdx=()=>S.nest==null?-1:gIdx(S.nest);
 const bagMax=()=>8+(S.items.some(i=>i.n==="背包")?4:0);
 const bagFull=()=>S.items.length>=bagMax();
@@ -184,7 +184,7 @@ function planOf(it){
   q.unit=hpUnit(q.key);
   const mpLeft=S.mp-q.mand.mp;
   const pl=payables(q),units=(q.raid?0:matCount())+pl.filter(x=>x.t!=="mat").length;
-  q.caps={hp:Math.max(0,Math.min(3,Math.floor((S.hp-1)/q.unit))),mp:Math.max(0,Math.min(3,Math.floor(mpLeft/2))),time:q.raid?0:3,item:Math.min(q.raid?1:3,units)};
+  q.caps={hp:Math.max(0,Math.min(3,Math.floor((S.hp-1)/q.unit))),mp:Math.max(0,Math.min(3,Math.floor(mpLeft/2))),time:q.raid?(q.speed?Math.min(3,mgUses(q.speed)):0):3,item:Math.min(q.raid?1:3,units)};
   q.hours=HOURS[act]||0;if(act==="craft"&&q.recipe&&q.recipe.sh)q.hours=4;
   if(act==="move"&&S.eq&&S.eq.鞋子)q.hours=Math.max(1,q.hours-1);
   if((act==="move"||act==="explore")&&mgOn("move").length)q.hours=Math.max(1,Math.ceil(q.hours/2));
@@ -213,7 +213,8 @@ function exec(q,p){
     if(p.shesh&&q.raid&&S.raid)S.raid.shesh=1;
     if(p.shesh){out.res="big";const part=SCAR_PARTS.includes(p.shesh)?p.shesh:pick(SCAR_PARTS);S.scars.push(part);count(S.stats,"shesh");
       out.paid.push(`捨身：${part}（${SCAR_D[part]}）`);S.hp=Math.min(S.hp,hpMax());S.mp=Math.min(S.mp,mpMax());}
-    else{const n=sumPick(p);out.res=n<q.need?"fail":n<q.bigAt?"ok":"big";payCosts(q,p,out)}
+    else if(p.dance&&q.dance){out.res="ok";q.dance.danced=1;out.lines.push(`${q.dance.n}自己飛了出去，替你擋下這一面。`)}
+    else{const n=sumPick(p);out.res=n<q.need?"fail":n<q.bigAt?"ok":"big";payCosts(q,p,out);if(q.speed&&p.time)q.speed.use=(q.speed.use||0)+p.time}
   }
   if(q.mand.mp)S.mp-=q.mand.mp;
   if(q.useSkill)useSkill(q.useSkill,out);
@@ -271,10 +272,10 @@ function loot(out,big){
 }
 function doFight(q,out){
   const en=S.enc;
-  if(out.res==="fail"){S.hp-=q.unit;out.lines.push(`${en.n}把你打退了。HP −${q.unit}`);if(en.raid)return raidStep(false,out);S.enc=null;return}
+  if(out.res==="fail"){const d=takeHit(q.unit,out);out.lines.push(`${en.n}把你打退了。${d?`HP −${d}`:""}`);if(en.raid)return raidStep(false,out);S.enc=null;return}
   if(en.raid){out.lines.push(`擋下了${en.n}。`);return raidStep(true,out)}
   out.lines.push(`打倒了${en.n}。`);
-  if(en.nest||en.dun||en.maze)specialWin(en,out,out.res==="big");else loot(out,out.res==="big");S.enc=null;
+  if(en.nest||en.dun||en.maze)specialWin(en,out,out.res==="big");else{loot(out,out.res==="big");if(out.res==="big"&&mgOn("vorpal").length){out.lines.push("斬首：一刀兩斷，多拿一份。");loot(out,false)}}S.enc=null;
 }
 function doRetreat(q,out){
   const en=S.enc;
@@ -356,11 +357,11 @@ function doCombo(q,out){
   if(eff){applyEffect(eff,out);
     if(S.enc){
       const en=S.enc,hit=m.f==="威懾"||["投射","附加","領域","強化"].includes(m.f);
-      if(en.raid){out.lines.push(hit?`這一招擋下了${en.n}。`:`這一招擋不住${en.n}。`);if(!hit){S.hp-=q.unit;out.lines.push(`HP −${q.unit}`)}return raidStep(hit,out)}
+      if(en.raid){out.lines.push(hit?`這一招擋下了${en.n}。`:`這一招擋不住${en.n}。`);if(!hit){const d=takeHit(q.unit,out);if(d)out.lines.push(`HP −${d}`)}return raidStep(hit,out)}
       if(m.f==="威懾"){out.lines.push(`${en.n}被嚇跑了。`);S.enc=null}
       else if(hit){out.lines.push(`這一招打倒了${en.n}。`);if(en.nest||en.dun||en.maze)specialWin(en,out,out.res==="big");else loot(out,out.res==="big");S.enc=null}
     }
-  }else if(S.enc){S.hp-=q.unit;out.lines.push(`${S.enc.n}趁機撲上來。HP −${q.unit}`);if(S.enc.raid)return raidStep(false,out)}
+  }else if(S.enc){const d=takeHit(q.unit,out);out.lines.push(`${S.enc.n}趁機撲上來。${d?`HP −${d}`:""}`);if(S.enc.raid)return raidStep(false,out)}
 }
 /* 碎片兌換：3 片同大類 → 同大類三選一；10 片任意 → 任意三選一 */
 function fragCounts(){const c={};S.frags.forEach(f=>f.cats.forEach(x=>count(c,x)));return c}
@@ -443,7 +444,7 @@ function night(voluntary){
   const fl=facDay();if(fl)lines.push(fl);
   S.day++;S.hour=WAKE;S.drank=false;
   S.skills.concat(S.store).forEach(s=>s.today=0);S.itemUsed={};
-  S.items.concat(SLOTS.map(k=>S.eq[k]).filter(Boolean)).forEach(it=>{if(it.use)it.use=0});
+  S.items.concat(SLOTS.map(k=>S.eq[k]).filter(Boolean)).forEach(it=>{if(it.use)it.use=0;if(it.danced)it.danced=0});S.burst=0;
   log(lines.join(" "));
   log(`天亮了，你醒了。這是你異世界一人生存的第 ${S.day} 天。今天要做什麼？`,"day");
   if(S.day>DAYS&&!S.over&&!S.pending)S.pending={type:"boss"};
@@ -534,6 +535,7 @@ function nextBattle(){const R=S.raid,b=R.list[R.i];S.enc=Object.assign({raid:tru
   log(`第 ${R.i+1}/${R.list.length} 場：${b.dir}，${b.n}（${b.lv}${b.king?"・BP 99":""}）${b.army?"，大軍壓過來":`，牠會「${b.t.n}」（獨特技巧，學不來）`}。`,"bad")}
 function raidStep(win,out){
   const R=S.raid,b=R.list[R.i];S.enc=null;
+  if(win&&out.res==="big"&&R.lost>0&&mgOn("vorpal").length){R.lost--;out.lines.push("斬首：這一擊抵銷了之前輸掉的一場。")}
   if(win){R.won++;const ex=1+Math.max(0,(b.king?7:gIdx(b.lv))-pg())+(out.res==="big"?1:0);out.gain.push(`存在值+${gainExist(ex)}`)}
   else{R.lost++;out.lines.push(`這一場輸了（${R.lost}/${R.max}）。`)}
   if(S.hp<=0&&R.kind==="boss")return;            /* 魔王戰倒下＝死 */
@@ -557,7 +559,7 @@ function raidStep(win,out){
     return}
   const g=gIdx(R.kind),core=g,hide=2*g;addMat("魔核",core);addMat("獸皮",hide);
   out.lines.push(`守住了！${R.kind} 級據點站穩了。`);out.gain.push(`魔核×${core}`,`獸皮×${hide}`);
-  gainItem(genMagic(R.kind),out);   /* 頭目掉的魔法物品 */
+  gainItem(genMagic(R.kind,null,R.kind==="S"),out);   /* 頭目掉的魔法物品；A→S 掉傳說級 */
   offerFac();
   if(S.hour>=24)night(false);
 }
