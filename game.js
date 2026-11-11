@@ -75,7 +75,7 @@ function newGame(){
     needs:{食物:false,火:false,水:false,避難所:false},fire:false,shelterAt:null,
     tags:{飢餓:false,會冷:false,疾病:0},scars:[],thirst:0,drank:false,
     seen:[],frags:[],enc:null,pending:null,over:null,nest:null,base:null,log:[],pts:0,fac:[],facPick:null,raid:null,bases:[],
-    eq:{},rel:{},langs:[],cleared:[],dun:{},maze:{best:0},
+    eq:{},rel:{},langs:[],cleared:[],dun:{},maze:{best:0},traded:{},uniqBought:{},
     stats:{actions:{},skillUse:{},combos:{try:0,learn:0,frag:0},enc:0,ch1Day:null,nestDay:{},lvDay:{},raids:[],ooc:{add:0,remove:0,edit:0}}};
   SLOTS.forEach(k=>S.eq[k]=null);S.hp=hpMax();
   log(OPENING,"letter");
@@ -129,9 +129,9 @@ function applyEffect(eff,out){
 }
 
 /* ───── 遭遇 ───── */
-function startEncounter(out){
-  const en=rollPlaceEnemy();S.enc=en;S.stats.enc++;
-  const msg=`遭遇：${en.n}（${en.lv} 級${en.e.length?"・"+en.e.join(""):""}${en.r?"・遠程":""}）。`;out.lines.push(msg);log(msg,"bad");
+function startEncounter(out,amb){
+  const en=rollPlaceEnemy();if(amb)en.amb=1;S.enc=en;S.stats.enc++;
+  const msg=`${amb?"突襲！":""}遭遇：${en.n}（${en.lv} 級${en.e.length?"・"+en.e.join(""):""}${en.r?"・遠程":""}）。`;out.lines.push(msg);log(msg,"bad");
   if(!S.seen.some(x=>x.n===en.t.n)){
     S.seen.push({n:en.t.n,e:en.t.e.slice(),part:en.t.part,from:en.n,lv:en.lv,used:false});
     const s=`你看見牠使出「${en.t.n}」。（記下來了，可以拿來組合偷學）`;out.lines.push(s);log(s);
@@ -179,6 +179,7 @@ function planOf(it){
   if(dis){net-=dis;q.notes.push(`劣勢（${it.dis.slice(0,2).join("、")}）−${dis}`)}
   if(q.key)net=Math.min(net,0);
   q.net=net;q.need=Math.max(0,1-net)+(q.approach||0);q.bigAt=q.need+1;
+  if(q.luck&&q.need>0){q.need--;q.bigAt=q.need+1;q.notes.push(`${q.luck.n}：好運，少付 1 項`)}else q.luck=null;
   if(q.smash&&q.need>=1){q.bigAt=q.need;q.notes.push("雙手破壞力：大成功少付 1 項")}
   q.unit=hpUnit(q.key);
   const mpLeft=S.mp-q.mand.mp;
@@ -223,6 +224,7 @@ function exec(q,p){
   const R={gather:doGather,explore:doExplore,hunt:doHunt,fight:doFight,retreat:doRetreat,craft:doCraft,combo:doCombo,shelter:doShelter,rest:doRest,move:doMove}[q.act];
   if(R)R(q,out);
   if(q.foe!=null)afterFight(q,out);
+  if(q.luck&&q.judge)q.luck.use=(q.luck.use||0)+1;
   if(S.hp<=0&&!S.over){die(out,"你倒下了，再也沒有起來。");}
   const T=ACT_NAME[q.act]||q.act;
   const resWord={fail:"失敗",ok:"成功",big:"大成功"}[out.res]||"";
@@ -255,7 +257,7 @@ function doExplore(q,out){
     out.lines.push(`找到新地點：${np.n}（${kw?kw+"・":""}${np.e.join("・")}${np.water?"，有水":""}${np.cave?"，有岩穴":""}）。你走了過去。`+
       (np.kind==="village"?`${np.race}看到你就皺眉（${REL_WORD[S.rel[np.race]]}）。`:np.kind==="hostile"?"裡面有敵人，可以突襲。":np.kind==="dungeon"||np.kind==="maze"?np.d:""));
   }else out.lines.push(left.length?"走了一圈，沒找到新地方。":ring<2?"附近能走的都走遍了，變強一點才走得更遠。":"能走的地方都走遍了。");
-  if(placeOf().kind!=="village"&&rand()<.3)startEncounter(out);
+  if(placeOf().kind!=="village"&&rand()<.3)startEncounter(out,true);   /* 探索途中被撞見＝被突襲 */
 }
 function doHunt(q,out){
   const k=placeOf().kind;if(k==="village"){out.lines.push("村子裡不能打獵。");return}
@@ -488,7 +490,7 @@ const facOn=()=>(S.fac||[]).filter(f=>f.s);
 const facMatch=f=>!!(f.s&&f.s.c.includes(facDef(f.n).cat));
 /* 放了該族專屬技能（例：鍛冶台放矮人符文） */
 const facRace=f=>{const d=facDef(f.n);return !!(f.s&&d.race&&RACES[d.race]&&f.s.n===RACES[d.race].sk.n)};
-function facBlock(){let b=facOn().length;const fe=facOn().find(f=>f.n==="柵欄");if(fe)b+=(facMatch(fe)?2:1)+(facRace(fe)?1:0);return b}
+function facBlock(){let b=facOn().length;const fe=facOn().find(f=>f.n==="柵欄");if(fe)b+=(facMatch(fe)?2:1)+(facRace(fe)?1:0);if(S.eq&&uniqOn("block"))b+=1;return b}
 function watchN(){const w=facOn().find(f=>f.n==="哨塔");return w?(facMatch(w)?3:2)+(facRace(w)?1:0):0}
 function offerFac(){
   if(S.ch<2||S.facPick||(S.fac||[]).length>=FAC_SLOTS(nestIdx()))return;
@@ -521,6 +523,9 @@ function startRaid(kind){
     for(let i=0;i<P.army;i++){const v=ARMY_DIS[tg],d=Math.floor(v+rand()),more=d>Math.floor(v),a=pick(ARMIES);list.push({n:a.n,lv:tg,army:1,e:a.e.slice(),r:a.r||0,t:{n:"人海",e:[]},dis:d,dir:dirs[i%dirs.length]+(more?"（這一面人特別多）":"")})}
     P.mon.forEach(g=>{const m=pick(RAID_MON[g]);list.push({n:m.n,lv:g,e:(m.e||[]).slice(),r:m.r||0,t:m.t,dis:Math.floor(ARMY_DIS[tg])-1,dir:pick(DIRS)})});
 }
+  /* 某一面被突破：敵人衝到身邊（遠程要付代價拉開距離）。一般升級戰 1 場，魔王戰 2 場；魔王那場不算 */
+  const cand=list.map((b,i)=>i).filter(i=>!list[i].king&&!list[i].r);
+  shuffle(cand).slice(0,kind==="boss"?2:1).forEach(i=>{list[i].brk=1;list[i].dir+="（這一面被突破，敵人衝進來了）"});
   S.raid={kind,i:0,lost:0,won:0,max:Math.floor((list.length-1)/2),list};  /* 輸掉一半就被攻破 */S.stats.enc++;
   log(kind==="boss"?`第 365 天過去了。魔王復活，帶著大軍朝你來了：一共 ${list.length} 場。`:`襲擊！大軍從各方位朝據點壓過來：一共 ${list.length} 場，輸 ${S.raid.max+1} 場據點就被攻破。`,"bad");
   nextBattle();
@@ -540,9 +545,15 @@ function raidStep(win,out){
   if(R.i<R.list.length){nextBattle();return}
   S.stats.raids.push({day:S.day,lv:R.kind,res:"ok",won:R.won,lost:R.lost});S.raid=null;
   if(R.kind==="boss"){
-    if(S.scars.length>=BAD_END_SCARS){S.over={end:"收藏品",day:S.day};
-      const msg=`你打倒了魔王。可是你的身體也廢了（${S.scars.join("、")}）。世人很快就忘了是誰救了這個世界。管理員來接你，把你放進他的收藏櫃，給了你一個位置。`;out.lines.push(msg);log(msg,"end")}
-    else{S.over={end:"退休",day:S.day};const msg=`你打倒了魔王。世界安靜了。${S.scars.length?`身上還留著${S.scars.join("、")}的傷，但你還走得動。`:""}你有一間房子可以退休。`;out.lines.push(msg);log(msg,"end")}
+    /* 三種結局（用戶 11-11）：壞＝捨身傷 3 處以上；好＝和 1 個以上聚落有貿易關係；其他＝普通 */
+    const tr=tradeRaces();let msg;
+    if(S.scars.length>=BAD_END_SCARS){S.over={end:"壞結局・收藏品",day:S.day};
+      msg=`你打倒了魔王。可是你的身體也廢了（${S.scars.join("、")}）。世人很快就忘了是誰救了這個世界。管理員來接你，把你放進他的收藏櫃，給了你一個位置。`}
+    else if(tr.length){S.over={end:"好結局・一起守護",day:S.day};
+      msg=`你打倒了魔王。${tr.join("、")}的人沒有忘記你。他們捏著鼻子，還是搬到了據點附近，和你一起生活，守著這一帶的和平。${S.scars.length?`你身上還留著${S.scars.join("、")}的傷，但你不是一個人了。`:""}`}
+    else{S.over={end:"普通結局・消失",day:S.day};
+      msg=`你打倒了魔王。沒有人知道是誰做的。據點的火慢慢熄了，你一個人消失在歷史的長河裡。`}
+    out.lines.push(msg);log(msg,"end");
     return}
   const g=gIdx(R.kind),core=g,hide=2*g;addMat("魔核",core);addMat("獸皮",hide);
   out.lines.push(`守住了！${R.kind} 級據點站穩了。`);out.gain.push(`魔核×${core}`,`獸皮×${hide}`);

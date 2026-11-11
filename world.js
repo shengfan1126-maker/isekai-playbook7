@@ -96,7 +96,16 @@ function gearBonus(q,act,sks){
     const race=Object.keys(RACES).find(r=>racialOwned(r)&&((army&&RACES[r].vs===army.n)||(r==="矮人"&&en.tag==="構裝")));
     if(race){net+=1;q.notes.push(`${RACES[race].sk.n}剋${army?army.n:"構裝體"} +1`)}
     const ranged=isRanged()||sks.some(s=>s.f==="投射")||(act==="combo"&&q.it.move==="丟出去");
-    if(en.r&&!ranged){q.approach=1;q.notes.push("對手在遠處：近戰要多付 1 項才能接近")}
+    const close=en.amb||en.brk;   /* 被突襲、或升級戰某一面被突破：對手已經在身邊 */
+    if(close&&!en.r&&isRanged()){
+      if(uniqOn("noamb")){q.notes.push("月光長弓：先手，不用拉開距離")}
+      else{net-=1;q.approach=1;q.notes.push(`${en.brk?"這一面被突破，敵人衝到身邊":"被近身突襲"}：遠程 +1 不算，還要多付 1 項拉開距離`)}}
+    else if(en.r&&!ranged&&!close){q.approach=1;q.notes.push("對手在遠處：近戰要多付 1 項才能接近")}
+    /* 聚落專屬魔法武器 */
+    if(uniqOn("holy")&&foeEss().includes("暗")){net+=1;q.notes.push("曙光長劍：聖光 +1")}
+    if(uniqOn("shadow")&&!close&&!en.raid){net+=1;q.notes.push("影子斗篷：你先出手 +1")}
+    if(uniqOn("tide")&&placeOf().water){net+=1;q.notes.push("潮汐三叉戟：有水的地方 +1")}
+    const lk=uniqOn("luck");if(lk&&mgUses(lk)>0)q.luck=lk;   /* 真的少付才記一次（game.js planOf） */
   }
   if(act==="retreat"){
     if(S.eq.鞋子){net+=1;q.notes.push(`${S.eq.鞋子.n} +1`)}
@@ -105,6 +114,8 @@ function gearBonus(q,act,sks){
   }
   return net;
 }
+/* 身上有效的聚落專屬魔法武器 */
+function uniqOn(t){return eqItems().find(it=>it.mg&&it.mg.t===t&&it.mg.race&&gIdx(it.lv)>=Math.min(6,foeIdx()))}
 /* 輸一場的傷害倍率：盾 −20%、衣服 −20%、頭 −10%；屬性抗性再減半 */
 function dmgMult(){
   let m=1-(S.eq.副手&&gearOf(S.eq.副手).wt==="盾"?.2:0)-(S.eq.衣服?.2:0)-(S.eq.頭?.1:0);
@@ -209,18 +220,37 @@ function villageSkill(){const P=villageAt();if(!P)return {err:"這裡不是村�
 function villageStock(){const P=villageAt();if(!P)return [];
   const seed=S.day*7+P.n.length;const r=x=>((seed*9301+x*49297)%233280)/233280;
   const base=[{n:"紅藥水",p:14},{n:"藍藥水",p:14},{n:"紫藥水",p:18},{n:"草藥膏",p:6}];
-  const gear=Object.keys(GEAR).filter(n=>!["骨項鍊","魔核戒指"].includes(n));
+  const gear=RECIPES.filter(r=>r.k==="gear").map(r=>r.n);
   base.push({n:gear[Math.floor(r(1)*gear.length)],p:12},{n:gear[Math.floor(r(2)*gear.length)],p:12});
   base.push({n:"魔法物品",p:40+20*nestIdx(),magic:1});
+  if(tradeRel(P.race)&&!S.uniqBought[P.race])base.push({n:RACE_ITEM[P.race].n,p:RACE_ITEM_PRICE,uniq:1});
   return base.map(x=>Object.assign({},x,{p:Math.ceil(x.p*relMult(P.race))}));
 }
 function villageBuy(k){const P=villageAt();if(!P)return {err:"這裡不是村落"};if(!S.langs.includes(RACES[P.race].lang))return {err:`要先會${RACES[P.race].lang}`};
   if(relOf(P.race)<-1)return {err:"他們敵視你"};
   const x=villageStock()[k];if(!x)return {err:"沒這個"};if(S.gold<x.p)return {err:`要 ${x.p} 金幣`};if(bagFull())return {err:"背包滿了"};
-  S.gold-=x.p;const it=x.magic?genMagic(GRADES[Math.max(0,nestIdx())]):POTIONS[x.n]?mkItem(x.n,"potion"):mkGear(x.n);S.items.push(it);
+  S.gold-=x.p;const it=x.uniq?mkUnique(P.race):x.magic?genMagic(GRADES[Math.max(0,nestIdx())]):POTIONS[x.n]?mkItem(x.n,"potion"):mkGear(x.n);S.items.push(it);
+  S.traded[P.race]=true;if(x.uniq)S.uniqBought[P.race]=true;
   log(`花 ${x.p} 金幣買了${it.n}（對方一臉嫌棄）。`);advance(1);return {ok:true}}
 function villageSell(m,n){const P=villageAt();if(!P)return {err:"這裡不是村落"};if(!S.langs.includes(RACES[P.race].lang))return {err:`要先會${RACES[P.race].lang}`};
-  n=Math.min(n||1,S.mats[m]||0);if(n<1)return {err:"沒有"};S.mats[m]-=n;const g=n*(SELL[m]||1);S.gold+=g;log(`在${P.n}賣了${m}×${n}，+${g} 金幣。`);return {ok:true}}
+  n=Math.min(n||1,S.mats[m]||0);if(n<1)return {err:"沒有"};S.mats[m]-=n;const g=n*(SELL[m]||1);S.gold+=g;S.traded[P.race]=true;log(`在${P.n}賣了${m}×${n}，+${g} 金幣。`);return {ok:true}}
+
+/* 貿易關係：會那一族的語言＋態度中立＋在那裡買賣過 */
+const tradeRel=race=>S.langs.includes(RACES[race].lang)&&relOf(race)>=0&&!!S.traded[race];
+const tradeRaces=()=>Object.keys(RACES).filter(tradeRel);
+function mkUnique(race){const u=RACE_ITEM[race];const it=mkGear(u.base,GRADES[Math.max(pg(),nestIdx(),2)]);it.n=u.n;it.mg={t:u.t,race,d:u.d};it.use=0;return it}
+
+/* ───── 鍛造：白字裝備＋魔核 (2＋等級) 或魔晶 1 → 魔法裝備。要在據點、有鍛冶台 ───── */
+const forgeCost=()=>2+pg();
+function canForge(){if(!S.base||S.at!==S.base)return "要在據點";if(!(S.fac||[]).some(f=>f.n==="鍛冶台"))return "據點要有鍛冶台";if(S.enc||S.raid)return "正在打";return true}
+function forgeMagic(i,useCrystal){
+  const ok=canForge();if(ok!==true)return {err:ok};const it=S.items[i];if(!it||!it.slot||it.mg)return {err:"要一件白字裝備"};
+  if(useCrystal){if((S.mats.魔晶||0)<1)return {err:"沒有魔晶"};S.mats.魔晶--}
+  else{const c=forgeCost();if((S.mats.魔核||0)<c)return {err:`要魔核 ×${c}`};S.mats.魔核-=c}
+  const m=genMagic(S.lv,it.base||it.n);S.items[i]=m;
+  const h=racialOwned("矮人")?Math.ceil(FORGE_HOURS/2):FORGE_HOURS;
+  log(`你在鍛冶台把${it.n}打成了${m.n}（${m.lv}）：${m.mg.d}。${h<FORGE_HOURS?"（矮人符文，快一半）":""}`,"good");advance(h);return {ok:true};
+}
 
 /* ───── 地城、迷宮、敵對據點：一層（一次）打一場 ───── */
 const CONSTRUCTS=[{n:"機關兵",e:["土","硬化"]},{n:"石像守衛",e:["土","硬化"]},{n:"陷阱走廊",e:["硬化"]},{n:"魔像",e:["土","硬化"]}];
@@ -266,7 +296,7 @@ const ESS_FIX={冷:"水",熱:"火",生長:"木"};
 const fixE=a=>uniq((a||[]).map(x=>ESS_FIX[x]||x));
 function worldFix(){
   S.eq=S.eq||{};SLOTS.forEach(k=>{if(S.eq[k]===undefined)S.eq[k]=null});
-  S.rel=S.rel||{};S.langs=S.langs||[];S.cleared=S.cleared||[];S.dun=S.dun||{};S.maze=S.maze||{best:0};
+  S.rel=S.rel||{};S.langs=S.langs||[];S.traded=S.traded||{};S.uniqBought=S.uniqBought||{};S.cleared=S.cleared||[];S.dun=S.dun||{};S.maze=S.maze||{best:0};
   S.skills.concat(S.store).forEach(s=>{s.e=fixE(s.e)});(S.fac||[]).forEach(f=>{if(f.n==="望樓")f.n="哨塔";if(f.s)f.s.e=fixE(f.s.e)});
   if(S.facPick)S.facPick=S.facPick.map(n=>n==="望樓"?"哨塔":n);
   S.seen.forEach(x=>x.e=fixE(x.e));S.frags.forEach(f=>f.e=fixE(f.e));

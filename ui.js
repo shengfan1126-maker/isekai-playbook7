@@ -89,7 +89,7 @@ function renderPanel(){
     const rinfo=R?`${esc(E.dir)}。${E.army?"大軍，沒有技巧可學。":`牠會「${esc(E.t.n)}」（升級戰頭目的獨特技巧，學不來）。`}多打一：劣勢 ${E.dis||0} 條，設施擋掉 ${Math.min(E.dis||0,facBlock())} 條。這是關鍵戰（淨優勢最多 0），不能付「多花時間」，「用掉東西」只能用背包裡的物品、一場一件。${boss?"魔王戰逃不掉。":"逃走＝放棄據點（設施全毀、F 級重來、物資剩一半）。"}`:
       `牠會「${esc(E.t.n)}」。打、用組合、或撤退（撤退也要付代價，例如丟下東西）。`;
     const ee=(E.e||[]).length?`屬性：${E.e.join("・")}${(E.e||[]).map(x=>Object.keys(COUNTER).filter(k=>COUNTER[k].includes(x))).flat().length?`（怕：${uniq(E.e.flatMap(x=>Object.keys(COUNTER).filter(k=>COUNTER[k].includes(x)))).join("、")}）`:""}。`:"";
-    const rr=E.r?"牠在遠處（遠程）：近戰要多付 1 項才能接近。":"";
+    const rr=E.amb?"<b>你被突襲了</b>：牠已經在身邊，拿遠程武器要多付 1 項拉開距離。":E.brk?"<b>這一面被突破</b>：敵人衝到身邊，拿遠程武器要多付 1 項拉開距離。":E.r?"牠在遠處（遠程）：近戰要多付 1 項才能接近。":"";
     P.innerHTML=h+`<div class="box enc"><b>${R?(boss?"魔王戰":"升級戰")+` 第 ${S.raid.i+1}/${S.raid.list.length} 場`:"遭遇"}：${esc(E.n)}（${E.lv} 級${E.king?"・BP 99":""}）</b>　你是 ${S.lv} 級。<br><span class="note">${ee}${rr}${rinfo}也可以直接在上面打字說你要怎麼做。戰鬥中也能喝藥（敵人會打你一下）。</span>
     <div class="row2"><button id="ef">${R?"迎擊":"戰鬥"}</button><button id="ec">組合</button>${boss?"":`<button id="er">${R?"放棄據點逃走":"撤退"}</button>`}</div></div>`;
     $("ef").onclick=()=>openDraft({act:"fight"});$("ec").onclick=()=>openDraft({act:"combo",obj:{t:"enemy",n:S.enc.n}});if($("er"))$("er").onclick=()=>openDraft({act:"retreat"});return}
@@ -230,7 +230,9 @@ function sheetBag(){
   const lock=!!(draft||busy||S.pending),inFight=!!S.enc;
   let h=`<h3>裝備</h3><div class="note">武器 +1；遠程再 +1；近戰打遠程的對手要多付 1 項才能接近；雙手近戰大成功少付 1 項。盾、衣服、頭減傷。比對手等級低的裝備用完就壞（不能修）。✦＝魔法物品（一個效果、一天 3 次）。</div><table>`+
     SLOTS.map(k=>{const it=S.eq[k];return `<tr><td>${k}</td><td>${it?esc(itemDesc(it)):'<span class="note">（空）</span>'}</td><td>${it&&!inFight?`<button data-uq="${k}" ${lock?"disabled":""}>卸下</button>`:""}</td></tr>`}).join("")+`</table>`;
-  h+=`<h3>背包 ${S.items.length}/${bagMax()}</h3><table>`+(S.items.map((it,i)=>`<tr><td>${esc(itemDesc(it))}</td><td>${it.slot&&!inFight?`<button data-eq="${i}" ${lock?"disabled":""}>裝上</button>`:""}${it.k==="potion"?`<button data-dr="${i}" ${lock?"disabled":""}>喝</button>`:""}</td></tr>`).join("")||"<tr><td>（空）</td></tr>")+`</table>`;
+  const fg=canForge();
+  h+=`<h3>背包 ${S.items.length}/${bagMax()}</h3>`+(fg===true?`<div class="note">鍛冶台：白字裝備＋魔核 ×${forgeCost()}（或魔晶 ×1）→ 魔法裝備（${S.lv} 級，效果隨機），${racialOwned("矮人")?Math.ceil(FORGE_HOURS/2):FORGE_HOURS} 小時。聚落專屬的效果做不出來。</div>`:`<div class="note">鍛造魔法裝備：${fg}。</div>`)+
+    `<table>`+(S.items.map((it,i)=>`<tr><td>${esc(itemDesc(it))}</td><td>${it.slot&&!inFight?`<button data-eq="${i}" ${lock?"disabled":""}>裝上</button>`:""}${it.k==="potion"?`<button data-dr="${i}" ${lock?"disabled":""}>喝</button>`:""}${fg===true&&it.slot&&!it.mg?` <button data-fg="${i}|0" ${lock||(S.mats.魔核||0)<forgeCost()?"disabled":""}>鍛造（魔核）</button>${S.mats.魔晶?` <button data-fg="${i}|1" ${lock?"disabled":""}>鍛造（魔晶）</button>`:""}`:""}</td></tr>`).join("")||"<tr><td>（空）</td></tr>")+`</table>`;
   h+=`<p>材料：${MATS.filter(m=>S.mats[m]).map(m=>m+"×"+S.mats[m]).join("、")||"（空）"}</p><p>金幣：${S.gold}　語言：${S.langs.join("、")||"沒有"}</p>
   <p>看過的魔物技巧：${S.seen.map(x=>`${esc(x.n)}（${esc(x.from)}・${x.lv}${x.used?"・已偷學":""}）`).join("、")||"（無）"}</p>
   <p>已知地點：${S.places.map(n=>{const p=placeOf(n);return `${n}（${KIND_WORD[p.kind]?KIND_WORD[p.kind]+"・":""}${p.e.join("・")}${p.water?"・有水":""}${p.cave?"・岩穴":""}${p.kind==="hostile"&&S.cleared.includes(n)?"・已打下":""}）`}).join("、")}</p>
@@ -240,6 +242,7 @@ function sheetBag(){
   $("sbody").querySelectorAll("[data-uq]").forEach(b=>b.onclick=()=>{const r=unequip(b.dataset.uq);if(r.err)toast=r.err;R()});
   $("sbody").querySelectorAll("[data-eq]").forEach(b=>b.onclick=()=>{const r=equip(+b.dataset.eq);if(r.err)toast=r.err;R()});
   $("sbody").querySelectorAll("[data-dr]").forEach(b=>b.onclick=()=>{usePotion(+b.dataset.dr);closeSheet()});
+  $("sbody").querySelectorAll("[data-fg]").forEach(b=>b.onclick=()=>{const [i,c]=b.dataset.fg.split("|");const r=forgeMagic(+i,c==="1");if(r.err)toast=r.err;R()});
 }
 function sheetPotion(){
   const L=S.items.map((it,i)=>[it,i]).filter(([it])=>it.k==="potion");
@@ -249,7 +252,9 @@ function sheetPotion(){
 }
 function sheetVillage(){
   const P=villageAt();if(!P)return;const R=RACES[P.race],rel=relOf(P.race),lang=S.langs.includes(R.lang),lock=!!(S.enc||S.pending||busy);
-  let h=`<h3>${esc(P.n)}</h3><p>${P.race}對你：<b>${REL_WORD[rel]}</b>（你身上的異香讓他們討厭你，最多只到中立；警戒時價錢 ×2，中立 ×1.5）。金幣 ${S.gold}。</p>`;
+  const tr=tradeRel(P.race);
+  let h=`<h3>${esc(P.n)}</h3><p>${P.race}對你：<b>${REL_WORD[rel]}</b>（你身上的異香讓他們討厭你，最多只到中立；警戒時價錢 ×2，中立 ×1.5）。金幣 ${S.gold}。</p>
+  <p class="note">貿易關係：${tr?`<b>已建立</b>。可以買${esc(RACE_ITEM[P.race].n)}；打倒魔王時有貿易關係的聚落會跟你一起生活（好結局）。`:`還沒有（要${lang?"✔":"✘"}會${R.lang}、${rel>=0?"✔":"✘"}態度中立、${S.traded[P.race]?"✔":"✘"}在這裡買賣過）。有了才買得到${esc(RACE_ITEM[P.race].n)}（${esc(RACE_ITEM[P.race].d)}）。`}</p>`;
   if(rel<0)h+=`<p><button data-v="gift|gold" ${lock?"disabled":""}>送禮（金幣 ${VILLAGE_PRICE.gift}）</button> <button data-v="gift|core" ${lock?"disabled":""}>送禮（魔核 ×2）</button> <span class="note">態度 +1</span></p>`;
   if(rel<-1)h+=`<p class="bad-t">他們敵視你，連話都不跟你說。先送禮。</p>`;
   else{
