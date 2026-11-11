@@ -253,7 +253,7 @@ function sheetPotion(){
   $("sbody").querySelectorAll("[data-dr]").forEach(b=>b.onclick=()=>{usePotion(+b.dataset.dr);closeSheet()});
 }
 function sheetVillage(){
-  const P=villageAt();if(!P)return;const R=RACES[P.race],rel=relOf(P.race),lang=S.langs.includes(R.lang),lock=!!(S.enc||S.pending||busy);
+  const P=villageAt();if(!P)return;const R=RACES[P.race],rel=relOf(P.race),lang=knowsLang(R.lang),lock=!!(S.enc||S.pending||busy);
   const tr=tradeRel(P.race);
   let h=`<h3>${esc(P.n)}</h3><p>${P.race}對你：<b>${REL_WORD[rel]}</b>（你身上的異香讓他們討厭你，最多只到中立；警戒時價錢 ×2，中立 ×1.5）。金幣 ${S.gold}。</p>
   <p class="note">貿易關係：${tr?`<b>已建立</b>。可以買${esc(RACE_ITEM[P.race].n)}；打倒魔王時有貿易關係的聚落會跟你一起生活（好結局）。`:`還沒有（要${lang?"✔":"✘"}會${R.lang}、${rel>=0?"✔":"✘"}態度中立、${S.traded[P.race]?"✔":"✘"}在這裡買賣過）。有了才買得到${esc(RACE_ITEM[P.race].n)}（${esc(RACE_ITEM[P.race].d)}）。`}</p>`;
@@ -265,7 +265,7 @@ function sheetVillage(){
       const has=racialOwned(P.race);
       h+=`<p>${has?`你已經學過【${R.sk.n}】。`:`<button data-v="skill" ${lock?"disabled":""}>學【${R.sk.n}】（${Math.ceil(VILLAGE_PRICE.skill*relMult(P.race))} 金幣，6 小時）</button>`}<br><span class="note">${esc(R.sk.d)}放進「${FAC.find(f=>f.race===P.race).n}」效果更好；升級戰對上${R.vs}多一條優勢。</span></p>`;
       h+=`<h4>買（今天的貨）</h4>`+villageStock().map((x,i)=>`<button data-v="buy|${i}" ${lock?"disabled":""}>${esc(x.n)} ${x.p}</button>`).join(" ");
-      h+=`<h4>賣</h4>`+MATS.filter(m=>S.mats[m]).map(m=>`<button data-v="sell|${m}" ${lock?"disabled":""}>${m}（${S.mats[m]}）+${SELL[m]||1}</button>`).join(" ");
+      h+=`<h4>賣</h4>`+MATS.filter(m=>S.mats[m]).map(m=>`<button data-v="sell|${m}" ${lock?"disabled":""}>${m}（${S.mats[m]}）+${Math.ceil((SELL[m]||1)*sellMult())}</button>`).join(" ");
     }
   }
   sheet(h);
@@ -357,8 +357,8 @@ function sheetCure(){
 }
 function sheetTrade(){
   if(nestIdx()<2)return sheet("<p>據點要 D 級以上，才會有商人來。（他們看到你就厭惡，買價 ×2）</p>");
-  sheet(`<h3>交易</h3><div class="note">金幣 ${S.gold}。賣：</div>`+MATS.filter(m=>S.mats[m]).map(m=>`<button data-t="sell|${m}">賣 ${m}（${S.mats[m]}）+${SELL[m]||1}</button>`).join(" ")+
-   `<div class="note">買（厭惡加價）：</div>`+Object.keys(BUY).map(m=>`<button data-t="buy|${m}">${m} ${BUY[m]*2}</button>`).join(" "));
+  sheet(`<h3>交易</h3><div class="note">金幣 ${S.gold}。賣：</div>`+MATS.filter(m=>S.mats[m]).map(m=>`<button data-t="sell|${m}">賣 ${m}（${S.mats[m]}）+${Math.ceil((SELL[m]||1)*sellMult())}</button>`).join(" ")+
+   `<div class="note">買（厭惡加價）：</div>`+Object.keys(BUY).map(m=>`<button data-t="buy|${m}">${m} ${Math.ceil(BUY[m]*2*buyMult())}</button>`).join(" "));
   $("sbody").querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{const [k,m]=b.dataset.t.split("|"),r=trade(k,m);if(r.err)toast=r.err;save();sheetTrade()});
 }
 /* ───── 設定（照搬魔物篇的設定頁；金鑰沿用魔物篇存的那一份） ───── */

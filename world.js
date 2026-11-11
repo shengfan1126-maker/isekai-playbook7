@@ -139,6 +139,7 @@ function afterFight(q,out){
   if(q.burstUsed)S.burst=0;
   if(out.res==="big"&&mgOn("burst").length){S.burst=1;out.lines.push("爆發：餘勁還在，下一場 +1。")}
   if(q.vicious){const d=Math.ceil(hpMax()*.05);S.hp-=d;out.paid.push(`兇猛反噬 HP −${d}`)}
+  if(out.res!=="fail"&&q.judge&&mgOn("growth").length)out.gain.push(`成長：存在值+${gainExist(1)}`);
   if(out.res!=="fail"&&q.judge){const rg=mgOn("regen").length;if(rg){const h=Math.ceil(hpMax()*.1*rg);S.hp=Math.min(hpMax(),S.hp+h);out.gain.push(`再生 HP +${h}`)}}
   const w=q.useWeapon;if(!w||!S.enc&&!q.foe)return;
   const fi=Math.min(6,q.foe!=null?q.foe:foeIdx());   /* 魔王算 S 級 */
@@ -226,11 +227,11 @@ function villageGift(kind){const P=villageAt();if(!P)return {err:"這裡不是�
   else{if((S.mats.魔核||0)<2)return {err:"要魔核 ×2"};S.mats.魔核-=2}
   S.rel[r]=relOf(r)+1;log(`你給${P.n}送了禮。${r}的態度變成「${REL_WORD[S.rel[r]]}」，但還是皺著眉頭。`,"act");advance(1);return {ok:true}}
 function villageLang(){const P=villageAt();if(!P)return {err:"這裡不是村落"};const R=RACES[P.race];
-  if(relOf(P.race)<-1)return {err:"他們敵視你，連話都不跟你說。先送禮"};if(S.langs.includes(R.lang))return {err:"已經會了"};
+  if(relOf(P.race)<-1)return {err:"他們敵視你，連話都不跟你說。先送禮"};if(knowsLang(R.lang))return {err:"已經會了"};
   const c=Math.ceil(VILLAGE_PRICE.lang*relMult(P.race));if(S.gold<c)return {err:`要 ${c} 金幣`};
   S.gold-=c;S.langs.push(R.lang);log(`花 ${c} 金幣，在${P.n}學會了${R.lang}。`,"good");advance(4);return {ok:true}}
 function villageSkill(){const P=villageAt();if(!P)return {err:"這裡不是村落"};const R=RACES[P.race];
-  if(relOf(P.race)<-1)return {err:"他們敵視你。先送禮"};if(!S.langs.includes(R.lang))return {err:`要先會${R.lang}`};if(owned(R.sk.n)||racialOwned(P.race))return {err:"已經學過了"};
+  if(relOf(P.race)<-1)return {err:"他們敵視你。先送禮"};if(!knowsLang(R.lang))return {err:`要先會${R.lang}`};if(owned(R.sk.n)||racialOwned(P.race))return {err:"已經學過了"};
   const c=Math.ceil(VILLAGE_PRICE.skill*relMult(P.race));if(S.gold<c)return {err:`要 ${c} 金幣`};
   S.gold-=c;const where=learnSkill(Object.assign({race:P.race},R.sk),"F");const s=allSkills().find(x=>x.n===R.sk.n);if(s)s.race=P.race;
   log(`花 ${c} 金幣，${P.race}很不情願地教你【${R.sk.n}】${where==="倉庫"?"（放進倉庫）":""}。放進「${FAC.find(f=>f.race===P.race).n}」效果更好；升級戰遇到${R.vs}多一條優勢。`,"good");gainExist(1);advance(6);return {ok:true}}
@@ -240,21 +241,23 @@ function villageStock(){const P=villageAt();if(!P)return [];
   const base=[{n:"紅藥水",p:14},{n:"藍藥水",p:14},{n:"紫藥水",p:18},{n:"草藥膏",p:6}];
   const gear=RECIPES.filter(r=>r.k==="gear").map(r=>r.n);
   base.push({n:gear[Math.floor(r(1)*gear.length)],p:12},{n:gear[Math.floor(r(2)*gear.length)],p:12});
-  base.push({n:"魔法物品",p:40+20*nestIdx(),magic:1});
+  base.push({n:"魔法物品",p:40+20*Math.max(0,nestIdx()),magic:1});
   if(tradeRel(P.race)&&!S.uniqBought[P.race])base.push({n:RACE_ITEM[P.race].n,p:RACE_ITEM_PRICE,uniq:1});
-  return base.map(x=>Object.assign({},x,{p:Math.ceil(x.p*relMult(P.race))}));
+  return base.map(x=>Object.assign({},x,{p:Math.ceil(x.p*relMult(P.race)*buyMult())}));
 }
-function villageBuy(k){const P=villageAt();if(!P)return {err:"這裡不是村落"};if(!S.langs.includes(RACES[P.race].lang))return {err:`要先會${RACES[P.race].lang}`};
+function villageBuy(k){const P=villageAt();if(!P)return {err:"這裡不是村落"};if(!knowsLang(RACES[P.race].lang))return {err:`要先會${RACES[P.race].lang}`};
   if(relOf(P.race)<-1)return {err:"他們敵視你"};
   const x=villageStock()[k];if(!x)return {err:"沒這個"};if(S.gold<x.p)return {err:`要 ${x.p} 金幣`};if(bagFull())return {err:"背包滿了"};
   S.gold-=x.p;const it=x.uniq?mkUnique(P.race):x.magic?genMagic(GRADES[Math.max(0,nestIdx())]):POTIONS[x.n]?mkItem(x.n,"potion"):mkGear(x.n);S.items.push(it);
   S.traded[P.race]=true;if(x.uniq)S.uniqBought[P.race]=true;
   log(`花 ${x.p} 金幣買了${it.n}（對方一臉嫌棄）。`);advance(1);return {ok:true}}
-function villageSell(m,n){const P=villageAt();if(!P)return {err:"這裡不是村落"};if(!S.langs.includes(RACES[P.race].lang))return {err:`要先會${RACES[P.race].lang}`};
-  n=Math.min(n||1,S.mats[m]||0);if(n<1)return {err:"沒有"};S.mats[m]-=n;const g=n*(SELL[m]||1);S.gold+=g;S.traded[P.race]=true;log(`在${P.n}賣了${m}×${n}，+${g} 金幣。`);return {ok:true}}
+function villageSell(m,n){const P=villageAt();if(!P)return {err:"這裡不是村落"};if(!knowsLang(RACES[P.race].lang))return {err:`要先會${RACES[P.race].lang}`};
+  n=Math.min(n||1,S.mats[m]||0);if(n<1)return {err:"沒有"};S.mats[m]-=n;const g=Math.ceil(n*(SELL[m]||1)*sellMult());S.gold+=g;S.traded[P.race]=true;log(`在${P.n}賣了${m}×${n}，+${g} 金幣。`);return {ok:true}}
 
+/* 會這個語言：學過，或身上有「通曉」的魔法物品 */
+const knowsLang=l=>S.langs.includes(l)||mgCount("tongues")>0;
 /* 貿易關係：會那一族的語言＋態度中立＋在那裡買賣過 */
-const tradeRel=race=>S.langs.includes(RACES[race].lang)&&relOf(race)>=0&&!!S.traded[race];
+const tradeRel=race=>knowsLang(RACES[race].lang)&&relOf(race)>=0&&!!S.traded[race];
 const tradeRaces=()=>Object.keys(RACES).filter(tradeRel);
 function mkUnique(race){const u=RACE_ITEM[race];const it=mkGear(u.base,GRADES[Math.max(pg(),nestIdx(),2)]);it.n=u.n;it.mg={t:u.t,race,d:u.d};it.use=0;return it}
 
