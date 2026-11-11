@@ -264,7 +264,7 @@ function doExplore(q,out){
 function doHunt(q,out){
   const k=placeOf().kind;if(k==="village"){out.lines.push("村子裡不能打獵。");return}
   out.lines.push(`你在${S.at}附近找獵物。`);startEncounter(out)}
-function loot(out,big,extra){   /* extra：獵人、斬首多拿的那一份，只有東西，不再給存在值 */
+function loot(out,big,extra){   /* extra：獵人、逆轉多拿的那一份，只有東西，不再給存在值 */
   const en=S.enc,ei=gIdx(en.lv),k=big?2:1;
   addMat("生肉",k);addMat("獸皮",1);addMat("骨頭",1);out.gain.push(`生肉×${k}`,"獸皮","骨頭");
   if(rand()<.15+.08*ei){addMat("魔核",1);out.gain.push("魔核")}
@@ -276,7 +276,7 @@ function doFight(q,out){
   if(out.res==="fail"){const d=takeHit(q.unit,out);out.lines.push(`${en.n}把你打退了。${d?`HP −${d}`:""}`);if(en.raid)return raidStep(false,out);S.enc=null;return}
   if(en.raid){out.lines.push(`擋下了${en.n}。`);return raidStep(true,out)}
   out.lines.push(`打倒了${en.n}。`);
-  if(en.nest||en.dun||en.maze)specialWin(en,out,out.res==="big");else{loot(out,out.res==="big");if(out.res==="big"&&mgOn("vorpal").length){out.lines.push("斬首：一刀兩斷，多拿一份。");loot(out,false,true)}
+  if(en.nest||en.dun||en.maze)specialWin(en,out,out.res==="big");else{loot(out,out.res==="big");if(out.res==="big"&&mgOn("vorpal").length){out.lines.push("逆轉：一擊收尾，多拿一份。");loot(out,false,true)}
     if(mgOn("hunter").length){out.lines.push("獵人的手法，多剝下一份。");loot(out,false,true)}}S.enc=null;
 }
 function doRetreat(q,out){
@@ -545,7 +545,7 @@ function nextBattle(){const R=S.raid,b=R.list[R.i];S.enc=Object.assign({raid:tru
   log(`第 ${R.i+1}/${R.list.length} 場：${b.dir}，${b.n}（${b.lv}${b.king?"・BP 99":""}）${b.army?"，大軍壓過來":`，牠會「${b.t.n}」（獨特技巧，學不來）`}。`,"bad")}
 function raidStep(win,out){
   const R=S.raid,b=R.list[R.i];S.enc=null;
-  if(win&&out.res==="big"&&R.lost>0&&mgOn("vorpal").length){R.lost--;out.lines.push("斬首：這一擊抵銷了之前輸掉的一場。")}
+  if(win&&out.res==="big"&&R.lost>0&&mgOn("vorpal").length){R.lost--;out.lines.push("逆轉：這一擊抵銷了之前輸掉的一場。")}
   if(win){R.won++;const ex=1+Math.max(0,(b.king?7:gIdx(b.lv))-pg())+(out.res==="big"?1:0);out.gain.push(`存在值+${gainExist(ex)}`)}
   else{R.lost++;out.lines.push(`這一場輸了（${R.lost}/${R.max}）。`)}
   if(S.hp<=0&&R.kind==="boss")return;            /* 魔王戰倒下＝死 */

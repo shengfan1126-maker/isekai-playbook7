@@ -301,7 +301,7 @@ function aiContext(){
   L.push(`已知地點：${S.places.join("、")}`);
   L.push(`求生：${NEEDS.map(k=>k+(S.needs[k]?"✔":"✘")).join(" ")}`);
   L.push(`技能（技能表，可用）：${S.skills.concat(itemSkills()).map(s=>`${s.n}〔${s.e.join("・")}〕剩${usesLeft(s)}次${s.fromItem?"（魔法物品附帶）":""}`).join("、")||"無"}`);
-  L.push(`裝備：${SLOTS.map(k=>S.eq[k]?`${k}＝${S.eq[k].n}${S.eq[k].mg?"（"+S.eq[k].mg.d+"）":""}`:"").filter(Boolean).join("、")||"無"}`);
+  L.push(`裝備：${SLOTS.map(k=>S.eq[k]?`${k}＝${S.eq[k].n}${S.eq[k].mg?"（"+mgDesc(S.eq[k].mg)+"）":""}`:"").filter(Boolean).join("、")||"無"}`);
   if(S.store.length)L.push(`倉庫（不能直接用）：${S.store.map(s=>s.n).join("、")}`);
   L.push(`背包物品：${S.items.map(i=>i.n).join("、")||"無"}；材料：${MATS.filter(m=>S.mats[m]).map(m=>m+"×"+S.mats[m]).join("、")||"無"}`);
   L.push(`看過的魔物技巧：${S.seen.map(x=>`${x.n}（${x.from}）`).join("、")||"無"}`);

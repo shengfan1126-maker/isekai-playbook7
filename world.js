@@ -50,7 +50,7 @@ function loseItem(it){
 }
 function itemDesc(it){
   const g=gearOf(it);let s=`${it.n}（${it.lv}${g?`・${g.slot}${g.wt?"・"+g.wt:""}`:""}）`;
-  if(it.mg)s+=`　✦${it.mg.d}　今天剩 ${mgUses(it)} 次`;
+  if(it.mg)s+=`　✦${mgDesc(it.mg)}　（魔力今天剩 ${mgUses(it)}/3）`;
   else if(it.k==="potion"&&POTIONS[it.n])s+="　"+potionWord(it.n);
   return s;
 }
@@ -58,19 +58,29 @@ const potionWord=n=>{const p=POTIONS[n];return [p.hp&&`HP +${Math.round(p.hp*100
 
 /* ───── 魔法物品 ───── */
 function pickW(list){const t=list.reduce((a,x)=>a+(x.w||1),0);let r=rand()*t;for(const x of list){r-=(x.w||1);if(r<0)return x}return list[0]}
+/* 魔法效果的說明（看當下的表，舊存檔也會顯示新名字） */
+function mgDesc(mg){
+  if(!mg)return "";
+  if(mg.race&&RACE_ITEM[mg.race])return RACE_ITEM[mg.race].d;
+  if(mg.t==="skill")return `寄技：附帶技能【${mg.v.n}】，一天 3 次，不扣 MP`;
+  if(mg.t==="elem")return `${ELEM_NM[mg.v]||""}紋：攻擊帶「${mg.v}」，可以觸發相剋`;
+  if(mg.t==="resist")return `避${mg.v}：被${mg.v}屬性的對手打，傷害減半`;
+  if(mg.t==="bane")return `剋${mg.v}：對${mg.v}優勢 +1`;
+  const f=MAGIC_FX.concat(LEGEND_FX).find(x=>x.t===mg.t);return f?f.d:(mg.d||"");
+}
 function genMagic(lv,base,legend){
   const n=base||pick(Object.keys(GEAR));const it=mkGear(n,lv);const fx=legend?pick(LEGEND_FX):pickW(MAGIC_FX);const mg={t:fx.t};
   if(fx.t==="skill"){const t=pick(COMBOS.concat(START_POOL));mg.v={n:t.n,e:t.e.slice(),c:t.c.slice(),f:t.f||"",d:t.d};mg.d=`附帶技能【${t.n}】（不扣 MP）`;it.n=`${t.n}・${n}`}
-  else if(fx.t==="elem"||fx.t==="resist"){mg.v=pick(ELEMS);mg.d=fx.t==="elem"?`攻擊帶「${mg.v}」`:`抗「${mg.v}」：被${mg.v}屬性的對手打傷害減半`;it.n=(fx.t==="elem"?`${mg.v}之`:`抗${mg.v}`)+n}
-  else if(fx.t==="bane"){mg.v=pick(FOE_TYPES);mg.d=`屠${mg.v}：對${mg.v}優勢 +1`;it.n=`屠${mg.v}${n}`}
+  else if(fx.t==="elem"||fx.t==="resist"){mg.v=pick(ELEMS);it.n=(fx.t==="elem"?`${ELEM_NM[mg.v]}紋`:`避${mg.v}`)+n}
+  else if(fx.t==="bane"){mg.v=pick(FOE_TYPES);it.n=`剋${mg.v}${n}`}
   else{mg.d=fx.d;it.n=FX_WORD[fx.t]+n;if(legend)mg.legend=1}
-  it.mg=mg;it.use=0;return it;
+  mg.d=mgDesc(mg);it.mg=mg;it.use=0;return it;
 }
 /* 附帶技能的魔法物品（裝備中、等級夠、今天還有次數），當成一個技能用 */
 function itemSkills(){return eqItems().filter(it=>it.mg&&it.mg.t==="skill").map(it=>({n:it.mg.v.n,e:it.mg.v.e,c:it.mg.v.c,f:it.mg.v.f,lv:it.lv,today:it.use||0,used:0,fromItem:it,d:`來自${it.n}`}))}
 
 /* ───── 相剋 ───── */
-/* 對手的類別（屠類）：魔王戰的「軍團＋魔物」兩個都算 */
+/* 對手的類別（剋X）：魔王戰的「軍團＋魔物」兩個都算 */
 function foeTypes(){const e=S.enc;if(!e)return [];const out=[];
   e.n.split("＋").forEach(nm=>{const t=Object.keys(MON_TYPE).find(k=>MON_TYPE[k].some(x=>nm.startsWith(x)));
     out.push(t||(e.tag==="構裝"?"構裝":ARMIES.some(a=>a.n===nm)||e.nest?"類人":"魔物"))});
@@ -107,16 +117,16 @@ function gearBonus(q,act,sks){
       if(uniqOn("noamb")){q.notes.push("月光長弓：先手，不用拉開距離")}
       else{net-=1;q.approach=1;q.notes.push(`${en.brk?"這一面被突破，敵人衝到身邊":"被近身突襲"}：遠程 +1 不算，還要多付 1 項拉開距離`)}}
     else if(en.r&&!ranged&&!close){q.approach=1;q.notes.push("對手在遠處：近戰要多付 1 項才能接近")}
-    /* 一般魔法效果（PF 參考） */
-    if(S.burst){net+=1;q.burstUsed=1;q.notes.push("爆發的餘勁 +1")}
+    /* 一般魔法效果 */
+    if(S.burst){net+=1;q.burstUsed=1;q.notes.push("餘震 +1")}
     if(mgOn("keen").length)q.smash=true;
     const ft=foeTypes(),bn=mgOn("bane").find(it=>ft.includes(it.mg.v));
-    if(bn){net+=1;q.notes.push(`${bn.n}：屠${bn.mg.v} +1`)}
-    const vc=mgOn("vicious")[0];if(vc){net+=1;q.vicious=vc;q.notes.push(`${vc.n}：兇猛 +1（你也扣 HP 5%）`)}
+    if(bn){net+=1;q.notes.push(`${bn.n}：剋${bn.mg.v} +1`)}
+    const vc=mgOn("vicious")[0];if(vc){net+=1;q.vicious=vc;q.notes.push(`${vc.n}：血契 +1（你也扣 HP 5%）`)}
     /* 聚落專屬魔法武器 */
-    if(uniqOn("holy")&&foeEss().includes("暗")){net+=1;q.notes.push("曙光長劍：神聖 +1")}
+    if(uniqOn("holy")&&foeEss().includes("暗")){net+=1;q.notes.push("曙光長劍：破邪 +1")}
     const lk=uniqOn("luck");if(lk&&mgUses(lk)>0)q.luck=lk;   /* 真的少付才記一次（game.js planOf） */
-    if(en.raid){const sp=uniqOn("speed");if(sp&&mgUses(sp)>0){q.speed=sp;q.notes.push("激流三叉戟：疾速，可以付「多花時間」")}
+    if(en.raid){const sp=uniqOn("speed");if(sp&&mgUses(sp)>0){q.speed=sp;q.notes.push("激流三叉戟：激流，可以付「多花時間」")}
       const dc=mgOn("dance").find(it=>!it.danced);if(dc&&!en.king)q.dance=dc;}
   }
   if(act==="retreat"){
@@ -137,16 +147,16 @@ function dmgMult(){
 /* 打完一場：下克上的裝備用完就壞 */
 function afterFight(q,out){
   if(q.burstUsed)S.burst=0;
-  if(out.res==="big"&&mgOn("burst").length){S.burst=1;out.lines.push("爆發：餘勁還在，下一場 +1。")}
-  if(q.vicious){const d=Math.ceil(hpMax()*.05);S.hp-=d;out.paid.push(`兇猛反噬 HP −${d}`)}
+  if(out.res==="big"&&mgOn("burst").length){S.burst=1;out.lines.push("餘震：力道還在，下一場 +1。")}
+  if(q.vicious){const d=Math.ceil(hpMax()*.05);S.hp-=d;out.paid.push(`血契反噬 HP −${d}`)}
   if(out.res!=="fail"&&q.judge&&mgOn("growth").length)out.gain.push(`成長：存在值+${gainExist(1)}`);
   if(out.res!=="fail"&&q.judge){const rg=mgOn("regen").length;if(rg){const h=Math.ceil(hpMax()*.1*rg);S.hp=Math.min(hpMax(),S.hp+h);out.gain.push(`再生 HP +${h}`)}}
   const w=q.useWeapon;if(!w||!S.enc&&!q.foe)return;
   const fi=Math.min(6,q.foe!=null?q.foe:foeIdx());   /* 魔王算 S 級 */
   if(gIdx(w.lv)<fi&&eqItems().includes(w)){loseItem(w);out.paid.push(`${w.n} 撐不住，壞了（${w.lv} 級打 ${GRADES[Math.min(6,fi)]} 級，不能修）`);spareWeapon(out)}
 }
-/* 輸一場受傷：錯位斗篷一天 3 次免傷 */
-function takeHit(d,out){const dp=uniqOn("displace");if(dp&&mgUses(dp)>0){dp.use=(dp.use||0)+1;out.lines.push(`錯位斗篷一晃，攻擊打在殘影上（今天第 ${dp.use}/3 次）。`);return 0}S.hp-=d;return d}
+/* 輸一場受傷：殘影斗篷一天 3 次免傷 */
+function takeHit(d,out){const dp=uniqOn("displace");if(dp&&mgUses(dp)>0){dp.use=(dp.use||0)+1;out.lines.push(`${dp.n}一晃，攻擊打在殘影上（今天第 ${dp.use}/3 次）。`);return 0}S.hp-=d;return d}
 /* 武器壞了：背包裡有別的武器就自動換上（同種類優先） */
 function spareWeapon(out){
   if(S.eq.武器)return;const prev=S.eq.副手&&gearOf(S.eq.副手).wt;
@@ -270,7 +280,7 @@ function forgeMagic(i,useCrystal){
   else{const c=forgeCost();if((S.mats.魔核||0)<c)return {err:`要魔核 ×${c}`};S.mats.魔核-=c}
   const m=genMagic(S.lv,it.base||it.n);S.items[i]=m;
   const h=racialOwned("矮人")?Math.ceil(FORGE_HOURS/2):FORGE_HOURS;
-  log(`你在鍛冶台把${it.n}打成了${m.n}（${m.lv}）：${m.mg.d}。${h<FORGE_HOURS?"（矮人符文，快一半）":""}`,"good");advance(h);return {ok:true};
+  log(`你在鍛冶台把${it.n}打成了${m.n}（${m.lv}）：${mgDesc(m.mg)}。${h<FORGE_HOURS?"（矮人符文，快一半）":""}`,"good");advance(h);return {ok:true};
 }
 
 /* ───── 地城、迷宮、敵對據點：一層（一次）打一場 ───── */
@@ -325,6 +335,13 @@ function worldFix(){
   /* 舊的白字：欄位空著就幫你穿上 */
   for(let i=S.items.length-1;i>=0;i--){const it=S.items[i];if(it.slot&&!S.eq[it.slot]&&canEquip(it)===true){S.eq[it.slot]=it;S.items.splice(i,1)}}
   if(S.places)S.places=S.places.filter(n=>placeOf(n));
+  /* 舊名字的魔法物品改成新名字（爆發→餘震、屠X→剋X、X之→X紋、抗X→避X…） */
+  S.items.concat(SLOTS.map(k=>S.eq[k]).filter(Boolean)).forEach(it=>{if(!it.mg)return;let n=it.n;
+    Object.entries(FX_OLD).forEach(([o,nw])=>{if(n.startsWith(o))n=nw+n.slice(o.length)});
+    if(it.mg.t==="bane"&&n.startsWith("屠"))n="剋"+n.slice(1);
+    if(it.mg.t==="resist"&&n.startsWith("抗"))n="避"+n.slice(1);
+    if(it.mg.t==="elem"&&n.startsWith(it.mg.v+"之"))n=(ELEM_NM[it.mg.v]||"")+"紋"+n.slice(2);
+    it.n=n;it.mg.d=mgDesc(it.mg)});
   /* v0.4.1 的影子斗篷、潮汐三叉戟換成新效果 */
   S.items.concat(SLOTS.map(k=>S.eq[k]).filter(Boolean)).forEach(it=>{if(it.mg&&(it.mg.t==="shadow"||it.mg.t==="tide")){const r=it.mg.t==="shadow"?"亞人":"人魚";const u=RACE_ITEM[r];it.n=u.n;it.base=u.base;Object.assign(it,{slot:GEAR[u.base].slot,wt:GEAR[u.base].wt||null});it.mg={t:u.t,race:r,d:u.d}}});
 }
