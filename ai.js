@@ -300,20 +300,22 @@ function aiContext(){
   L.push(`第 ${S.day} 天 ${String(S.hour).padStart(2,"0")}:00，第${S.ch===1?"一":"二"}章，在「${S.at}」（本質：${P.e.join("、")}${P.water?"，有水":""}${P.cave?"，有岩穴":""}）。`);
   L.push(`已知地點：${S.places.join("、")}`);
   L.push(`求生：${NEEDS.map(k=>k+(S.needs[k]?"✔":"✘")).join(" ")}`);
-  L.push(`技能（技能表，可用）：${S.skills.map(s=>`${s.n}〔${s.e.join("・")}〕剩${usesLeft(s)}次`).join("、")||"無"}`);
+  L.push(`技能（技能表，可用）：${S.skills.concat(itemSkills()).map(s=>`${s.n}〔${s.e.join("・")}〕剩${usesLeft(s)}次${s.fromItem?"（魔法物品附帶）":""}`).join("、")||"無"}`);
+  L.push(`裝備：${SLOTS.map(k=>S.eq[k]?`${k}＝${S.eq[k].n}${S.eq[k].mg?"（"+S.eq[k].mg.d+"）":""}`:"").filter(Boolean).join("、")||"無"}`);
   if(S.store.length)L.push(`倉庫（不能直接用）：${S.store.map(s=>s.n).join("、")}`);
-  L.push(`物品：${S.items.map(i=>i.n).join("、")||"無"}；材料：${MATS.filter(m=>S.mats[m]).map(m=>m+"×"+S.mats[m]).join("、")||"無"}`);
+  L.push(`背包物品：${S.items.map(i=>i.n).join("、")||"無"}；材料：${MATS.filter(m=>S.mats[m]).map(m=>m+"×"+S.mats[m]).join("、")||"無"}`);
   L.push(`看過的魔物技巧：${S.seen.map(x=>`${x.n}（${x.from}）`).join("、")||"無"}`);
   if(S.ch===2)L.push(`據點：${S.nest} 級（${S.base}），點數 ${S.pts}；設施：${S.fac.map(f=>f.n+(f.s?`〔${f.s.n}〕`:"〔空〕")).join("、")||"無"}`);
   if(S.raid)L.push(`${S.raid.kind==="boss"?"魔王戰":"升級戰"}進行中：第 ${S.raid.i+1}/${S.raid.list.length} 場（${S.enc?S.enc.dir:""}），已輸 ${S.raid.lost}`);
-  if(S.enc)L.push(`正在遭遇：${S.enc.n}（${S.enc.lv} 級）${S.enc.army?"，大軍":""}`);
+  if(S.enc)L.push(`正在遭遇：${S.enc.n}（${S.enc.lv} 級，屬性 ${(S.enc.e||[]).join("、")||"無"}${S.enc.r?"，遠程":""}）${S.enc.army?"，大軍":""}`);
+  if(P.kind&&P.kind!=="wild")L.push(`這裡是${KIND_WORD[P.kind]}${P.race?`（${P.race}，態度${REL_WORD[relOf(P.race)]}）`:""}${specialHere()?`，可以「${specialHere().label}」`:""}`);
   L.push(`手法：${MOVES.map(m=>m.n).join("、")}`);
   L.push(`配方：${RECIPES.map(r=>r.n).join("、")}`);
   return L.join("\n");
 }
 const PARSE_SYS=`你是文字冒險遊戲的「規則翻譯員」。把玩家的話翻成一個 JSON，交給程式判定。你不判定成敗、不給物品、不改數字、不寫故事。
 只輸出 JSON，欄位：
-{"act":"gather|explore|hunt|fight|retreat|craft|combo|shelter|rest|move|sleep|talk",
+{"act":"gather|explore|hunt|fight|retreat|craft|combo|shelter|rest|move|sleep|potion|delve|talk",
  "skills":["技能名，最多 3 個，只能用『技能表』裡有的"],
  "obj":{"t":"place|item|seen|enemy|none","n":"名稱"},
  "move":"手法名（組合時必填，只能從手法清單選最接近的）",
@@ -327,6 +329,7 @@ const PARSE_SYS=`你是文字冒險遊戲的「規則翻譯員」。把玩家的
 - 玩家把技能用在某個東西上、或把幾個技能疊在一起用，就是 combo；obj 是用在誰身上（地點、物品、看過的魔物技巧、眼前的敵人）。
 - 模仿或偷學魔物的動作：combo，obj.t="seen"，n=那個技巧名。
 - 動詞對應手法：鋪開、籠罩→覆蓋；扔、射、甩出去→丟出去；包、圍、裹→包住；附在武器上→灌進武器；嚇、吼、威脅→嚇；感覺、探查、聽、看→感受；聚在一點、加熱、點燃→集中；壓、擠、榨→壓縮；加速、強化身體、疊起來衝→催動。
+- 喝藥、吃藥水＝potion（item 填藥名）；突襲敵對據點、深入地城或迷宮＝delve。
 - 找吃的、撿東西＝gather；四處走走找新地方＝explore；找獵物＝hunt；遭遇中打＝fight，逃＝retreat；做石刀、草棚、火種、水袋等＝craft；進岩穴住下＝shelter；換地方＝move；養傷、坐著休息＝rest；睡到明天＝sleep；只是聊天或想事情＝talk。
 - 名稱一律照清單原字，不要自創技能、物品、地點。清單裡沒有的就不要填。`;
 async function aiParse(text){
@@ -337,9 +340,10 @@ async function aiParse(text){
 /* 把 AI 的回答收斂成程式認得的東西 */
 function normIntent(j){
   const near=(name,list)=>{if(!name)return null;return list.find(x=>x===name)||list.find(x=>name.includes(x)||x.includes(name))||null};
-  const acts=["gather","explore","hunt","fight","retreat","craft","combo","shelter","rest","move","sleep","talk"];
+  const acts=["gather","explore","hunt","fight","retreat","craft","combo","shelter","rest","move","sleep","potion","delve","talk"];
   const it={act:acts.includes(j.act)?j.act:"talk",say:String(j.say||"")};
-  it.skills=uniq((j.skills||[]).map(n=>near(String(n),S.skills.map(s=>s.n))).filter(Boolean)).slice(0,3);
+  it.skills=uniq((j.skills||[]).map(n=>near(String(n),S.skills.concat(itemSkills()).map(s=>s.n))).filter(Boolean)).slice(0,3);
+  it.potion=near(j.item||(j.obj&&j.obj.n),S.items.filter(i=>i.k==="potion").map(i=>i.n))||"";
   it.move=near(j.move,MOVES.map(m=>m.n))||"";
   it.goal=NEEDS.includes(j.goal)?j.goal:"";
   it.craft=near(j.craft,RECIPES.map(r=>r.n))||"";

@@ -1,7 +1,7 @@
 /* sim.js：用 node 跑機器人玩家，看第一章（求生四項打勾）要幾天、會不會死。用法：node sim.js [局數] */
 const fs=require("fs"),vm=require("vm");
 const ctx=vm.createContext({console,Math});
-vm.runInContext(fs.readFileSync(__dirname+"/data.js","utf8")+"\n"+fs.readFileSync(__dirname+"/game.js","utf8")+
+vm.runInContext(["data.js","game.js","world.js"].map(f=>fs.readFileSync(__dirname+"/"+f,"utf8")).join("\n")+
   "\nthis.G={newGame,planOf,exec,sleep,startCh2,failChoice,get S(){return S},hpMax,placeOf,gIdx,canExchange,drawChoices,exchange,RECIPES,MOVES,PLACES};",ctx);
 const G=ctx.G;
 function pay(q,want){const p={hp:0,mp:0,time:0,item:0};let n=want;for(const k of ["time","mp","item","hp"]){const t=Math.min(n,q.caps[k]);p[k]=t;n-=t}return p}

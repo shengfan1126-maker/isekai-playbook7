@@ -8,7 +8,7 @@ let busy=false;      // 等 AI 回答中
 
 function save(){ls.s(SAVE_KEY,JSON.stringify(S))}
 function load(){try{const t=ls.g(SAVE_KEY);if(t){S=JSON.parse(t);return S&&S.ver===VER}}catch(e){}return false}
-function heal(){S.store=S.store||[];S.frags=S.frags||[];S.seen=S.seen||[];S.scars=S.scars||[];S.items=S.items||[];S.mats=S.mats||{};
+function heal(){S.store=S.store||[];S.frags=S.frags||[];S.seen=S.seen||[];S.scars=S.scars||[];S.items=S.items||[];S.mats=S.mats||{};worldFix();
   S.scars=S.scars.map(x=>OLD_SCAR[x]||x);S.pts=S.pts||0;S.fac=S.fac||[];S.facPick=S.facPick||null;S.raid=S.raid||null;
   if(S.ch>=2&&!S.bases){S.bases=[];   /* 舊存檔：從紀錄找出當過據點的地方 */
     S.log.forEach(l=>{const m=l.t.match(/你在(.+?)建立了 F 級據點/)||l.t.match(/你把據點搬到(.+?)[。，]/);if(m&&!S.bases.includes(m[1]))S.bases.push(m[1])});
@@ -25,7 +25,8 @@ function renderStatus(){
   ${S.raid?`<div class="note bad-t">${S.raid.kind==="boss"?"魔王戰":"升級戰"}：第 ${S.raid.i+1}/${S.raid.list.length} 場，已輸 ${S.raid.lost}/${S.raid.max}（再輸 ${S.raid.max-S.raid.lost+1} 場${S.raid.kind==="boss"?"就完了":"據點被攻破"}）${S.raid.shesh?"，這場已捨身過":""}</div>`:""}
   ${S.ch===1?`<div class="needs">${ck}</div>`:""}
   ${tags.length?`<div class="note bad-t">${tags.join("・")}</div>`:""}
-  <div class="note">存在值 ${S.exist}/${EXIST_MAX(S.lv)}　碎片 ${S.frags.length}　技能 ${S.skills.length}/${SKILL_SLOTS}（倉庫 ${S.store.length}/${STORE_MAX[S.lv]}）</div>`;
+  <div class="note">存在值 ${S.exist}/${EXIST_MAX(S.lv)}　碎片 ${S.frags.length}　技能 ${S.skills.length}/${SKILL_SLOTS}（倉庫 ${S.store.length}/${STORE_MAX[S.lv]}）　金幣 ${S.gold}　背包 ${S.items.length}/${bagMax()}</div>
+  <div class="note">裝備：${SLOTS.filter(k=>S.eq[k]).map(k=>`${k} ${esc(S.eq[k].n)}${S.eq[k].mg?"✦":""}`).join("・")||"（沒有）"}</div>`;
 }
 function renderLog(){
   $("logbox").innerHTML=S.log.slice().reverse().map(e=>`<div class="l ${e.type}"><small>第${e.day}天 ${String(e.hour).padStart(2,"0")}:00</small>${esc(e.t)}</div>`).join("");
@@ -43,23 +44,26 @@ function renderMenu(){
   const lock=!!(S.pending||S.enc||draft||busy);
   const ex=canExchange();
   const B=[["gather","採集"],["explore","探索"],["hunt","狩獵"],["combo","組合"],["craft","製作"],["move","移動"],["rest","休息"],["sleep","睡覺"],
-    ["skills","技能"],["frags",`碎片 ${S.frags.length}${ex.cats.length||ex.any?"！":""}`],["bag","背包"],["recipes","配方"]];
+    ["skills","技能"],["frags",`碎片 ${S.frags.length}${ex.cats.length||ex.any?"！":""}`],["bag","背包・裝備"],["recipes","配方"]];
+  const sp=specialHere();if(sp)B.push(["special",sp.label]);
+  if(villageAt())B.push(["village",`${villageAt().n}`]);
+  if(S.base&&S.at!==S.base&&mgOn("tele").some(x=>mgUses(x)>0))B.push(["tele","傳送回據點"]);
   if(S.ch===1&&S.ch1Offered&&!S.pending)B.push(["ch2","建立據點"]);
   if(S.ch===2){const b=canBuild();B.push(["base","據點"],["build",b?`升級據點→${b.target}（${S.pts}/${b.need}）`:"據點已是 S",!b||!b.ok],["movebase","搬家"],["trade","交易"]);}
   if(canEvolve())B.push(["evolve","進化"]);
   if(hasItem("potion"))B.push(["potion","用藥"]);
   if(S.items.some(i=>i.k==="cure")&&S.scars.length)B.push(["cure","治傷（萬靈藥）"]);
-  const potionOk=hasItem("potion")&&!draft&&!busy&&!S.pending;
+  const potionOk=hasItem("potion")&&!draft&&!busy&&!S.pending;   /* 戰鬥中也能喝，敵人會打你一下 */
   B.push(["stats","統計"],["ooc","OOC 更正"]);
-  const info=["skills","frags","bag","recipes","stats","ooc","base","cure"];
+  const info=["skills","frags","bag","recipes","stats","ooc","base","cure","village"];
   m.innerHTML=B.map(([k,t,d])=>`<button data-k="${k}" ${(d||(lock&&!info.includes(k)&&!(k==="potion"&&potionOk)))?"disabled":""}>${esc(t)}</button>`).join("");
   m.querySelectorAll("button").forEach(x=>x.onclick=()=>menuClick(x.dataset.k));
 }
 function refresh(){save();renderStatus();renderPanel();renderSay();renderMenu();renderLog()}
 
 /* ───── 判定面板 ───── */
-function openDraft(it,said){draft={it:Object.assign({skills:[],obj:{t:"none",n:""},move:"",goal:"",adv:[],dis:[]},it),p:{hp:0,mp:0,time:0,item:0},shesh:false,said:said||""};toast="";
-  if(it.costs&&it.costs.length){const q=planOf(draft.it);if(it.costs.includes("shesh"))draft.shesh=true;else{let n=q.need;it.costs.forEach(c=>{const t=Math.min(n,q.caps[c]||0);draft.p[c]=t;n-=t})}}
+function openDraft(it,said){draft={it:Object.assign({skills:[],obj:{t:"none",n:""},move:"",goal:"",adv:[],dis:[]},it),p:{hp:0,mp:0,time:0,item:0,items:[]},shesh:false,said:said||""};toast="";
+  if(it.costs&&it.costs.length){const q=planOf(draft.it);if(it.costs.includes("shesh"))draft.shesh=true;else{let n=q.need;it.costs.forEach(c=>{const t=Math.min(n,q.caps[c]||0);if(c==="item"){draft.p.items=autoPay(q,t).map(x=>x.t==="mat"?x:{t:x.t,it:x.it});draft.p.item=draft.p.items.length}else draft.p[c]=t;n-=t})}}
   renderAll()}
 function renderAll(){renderStatus();renderPanel();renderSay();renderMenu()}
 function renderPanel(){
@@ -67,7 +71,7 @@ function renderPanel(){
   if(toast)h+=`<div class="toast">${esc(toast)}</div>`;
   if(S.over){P.innerHTML=h;return}
   if(S.pending&&!draft){const t=S.pending.type;
-    if(t==="ch2"){P.innerHTML=h+`<div class="box"><b>第一章完成</b><br>食物、火、水、避難所都有了。要在「${esc(S.at)}」建立據點，進入第二章嗎？<br><span class="note">第二章：據點升級會被襲擊；搬家會讓據點變回 F 級、物資減半。</span>
+    if(t==="ch2"){P.innerHTML=h+`<div class="box"><b>第一章完成</b><br>食物、火、水、避難所都有了。要在「${esc(S.at)}」建立據點，進入第二章嗎？${baseable(S.at)?"":"<br><b>這裡不能當據點</b>（要在野外，或打下來的敵對據點）。選「先不要」，走到別處再從選單建立。"}<br><span class="note">第二章：據點升級會被襲擊；搬家會讓據點變回 F 級、物資減半。</span>
       <p><button class="pri" id="c2y">在這裡建立據點</button> <button id="c2n">先不要</button></p></div>`;
       $("c2y").onclick=()=>{startCh2(true);refresh()};$("c2n").onclick=()=>{startCh2(false);refresh()};return}
     if(t==="failchoice"){const T=S.pending.boss?[]:moveTargets();
@@ -84,7 +88,9 @@ function renderPanel(){
   if(S.enc&&!draft){const R=S.enc.raid,E=S.enc,boss=R&&S.raid&&S.raid.kind==="boss";
     const rinfo=R?`${esc(E.dir)}。${E.army?"大軍，沒有技巧可學。":`牠會「${esc(E.t.n)}」（升級戰頭目的獨特技巧，學不來）。`}多打一：劣勢 ${E.dis||0} 條，設施擋掉 ${Math.min(E.dis||0,facBlock())} 條。這是關鍵戰（淨優勢最多 0），不能付「多花時間」，「用掉東西」只能用背包裡的物品、一場一件。${boss?"魔王戰逃不掉。":"逃走＝放棄據點（設施全毀、F 級重來、物資剩一半）。"}`:
       `牠會「${esc(E.t.n)}」。打、用組合、或撤退（撤退也要付代價，例如丟下東西）。`;
-    P.innerHTML=h+`<div class="box enc"><b>${R?(boss?"魔王戰":"升級戰")+` 第 ${S.raid.i+1}/${S.raid.list.length} 場`:"遭遇"}：${esc(E.n)}（${E.lv} 級${E.king?"・BP 99":""}）</b>　你是 ${S.lv} 級。<br><span class="note">${rinfo}也可以直接在上面打字說你要怎麼做。</span>
+    const ee=(E.e||[]).length?`屬性：${E.e.join("・")}${(E.e||[]).map(x=>Object.keys(COUNTER).filter(k=>COUNTER[k].includes(x))).flat().length?`（怕：${uniq(E.e.flatMap(x=>Object.keys(COUNTER).filter(k=>COUNTER[k].includes(x)))).join("、")}）`:""}。`:"";
+    const rr=E.r?"牠在遠處（遠程）：近戰要多付 1 項才能接近。":"";
+    P.innerHTML=h+`<div class="box enc"><b>${R?(boss?"魔王戰":"升級戰")+` 第 ${S.raid.i+1}/${S.raid.list.length} 場`:"遭遇"}：${esc(E.n)}（${E.lv} 級${E.king?"・BP 99":""}）</b>　你是 ${S.lv} 級。<br><span class="note">${ee}${rr}${rinfo}也可以直接在上面打字說你要怎麼做。戰鬥中也能喝藥（敵人會打你一下）。</span>
     <div class="row2"><button id="ef">${R?"迎擊":"戰鬥"}</button><button id="ec">組合</button>${boss?"":`<button id="er">${R?"放棄據點逃走":"撤退"}</button>`}</div></div>`;
     $("ef").onclick=()=>openDraft({act:"fight"});$("ec").onclick=()=>openDraft({act:"combo",obj:{t:"enemy",n:S.enc.n}});if($("er"))$("er").onclick=()=>openDraft({act:"retreat"});return}
   if(!draft&&canReroll()){
@@ -96,19 +102,18 @@ function renderPanel(){
   const sel=(id,opts,val)=>`<select id="${id}">${opts.map(([v,t])=>`<option value="${esc(v)}" ${v===val?"selected":""}>${esc(t)}</option>`).join("")}</select>`;
   let f="";
   if(it.act==="combo"){
-    f+=`<div class="lbl">技能（最多 3 個，MP＝技能數）</div><div class="chips">`+S.skills.map((s,i)=>`<label class="chip"><input type="checkbox" class="dsk" value="${esc(s.n)}" ${it.skills.includes(s.n)?"checked":""} ${usesLeft(s)<1?"disabled":""}>${esc(s.n)}<small>${s.lv}・${s.e.join("")}・剩${usesLeft(s)}</small></label>`).join("")+`</div>`;
+    f+=`<div class="lbl">技能（最多 3 個，MP＝技能數；✦魔法物品附帶的不扣 MP）</div><div class="chips">`+S.skills.concat(itemSkills()).map((s,i)=>`<label class="chip"><input type="checkbox" class="dsk" value="${esc(s.n)}" ${it.skills.includes(s.n)?"checked":""} ${usesLeft(s)<1?"disabled":""}>${s.fromItem?"✦":""}${esc(s.n)}<small>${s.lv}・${s.e.join("")}・剩${usesLeft(s)}</small></label>`).join("")+`</div>`;
     const objs=[["none|","不對誰（只疊技能）"],["place|"+S.at,`地點：${S.at}（${placeOf().e.join("・")}）`]]
       .concat(S.enc?[["enemy|"+S.enc.n,`眼前的${S.enc.n}`]]:[])
       .concat(S.seen.map(x=>["seen|"+x.n,`偷學：${x.n}（${x.from}${x.used?"，學過了":""}）`]))
-      .concat(S.items.map(i=>["item|"+i.n,`物品：${i.n}`])).concat(MATS.filter(m=>S.mats[m]).map(m=>["item|"+m,`材料：${m}`]));
+      .concat(S.items.concat(SLOTS.map(k=>S.eq[k]).filter(Boolean)).map(i=>["item|"+i.n,`物品：${i.n}`])).concat(MATS.filter(m=>S.mats[m]).map(m=>["item|"+m,`材料：${m}`]));
     f+=`<label class="ck">對象 ${sel("dob",objs,it.obj.t+"|"+(it.obj.n||""))}</label>`;
     f+=`<label class="ck">手法 ${sel("dmv",[["","（選一個）"]].concat(MOVES.map(m=>[m.n,`${m.n}（${m.f}）`])),it.move)}</label>`;
   }else if(["gather","explore","fight","craft","retreat","shelter","raid","boss"].includes(it.act)){
-    f+=`<label class="ck">技能 ${sel("dsk1",[["","不用"]].concat(S.skills.map(s=>[s.n,`${s.n}（${s.lv}・${s.c.join("")}・剩${usesLeft(s)}）`])),it.skills[0]||"")}</label>`;
+    f+=`<label class="ck">技能 ${sel("dsk1",[["","不用"]].concat(S.skills.concat(itemSkills()).map(s=>[s.n,`${s.fromItem?"✦":""}${s.n}（${s.lv}・${s.c.join("")}・剩${usesLeft(s)}${s.fromItem?"・不扣MP":""}）`])),it.skills[0]||"")}</label>`;
   }
   if(it.act==="craft")f+=`<label class="ck">做什麼 ${sel("dcr",[["","（選一個）"]].concat(RECIPES.map(r=>[r.n,`${r.n}（${Object.entries(r.need).map(([m,n])=>m+n).join("＋")}）`])),it.craft)}</label>`;
-  if(it.act==="move")f+=`<label class="ck">去哪 ${sel("dpl",[["","（選一個）"]].concat(S.places.filter(n=>n!==S.at).map(n=>[n,n])),it.place||"")}</label>`;
-  if(["fight","combo","raid","boss"].includes(it.act)&&hasItem("white"))f+=`<label class="ck"><input type="checkbox" id="dwp" ${it.weapon?"checked":""}>用掉一件武器（+1）</label>`;
+  if(it.act==="move")f+=`<label class="ck">去哪 ${sel("dpl",[["","（選一個）"]].concat(S.places.filter(n=>n!==S.at).map(n=>{const P=placeOf(n);return [n,n+(KIND_WORD[P.kind]?`（${KIND_WORD[P.kind]}）`:"")]})),it.place||"")}</label>`;
   const step=(k,t)=>`<div class="step"><span>${t}</span><button data-s="${k}-">−</button><span>${d.p[k]}/${q.caps[k]}</span><button data-s="${k}+">＋</button></div>`;
   const sum=sumPick(d.p),res=d.shesh?"大成功（捨身）":sum<q.need?"失敗":sum<q.bigAt?"成功":"大成功";
   const en=S.enc&&["fight","retreat","combo"].includes(it.act)?`　對手：${esc(S.enc.n)}（${S.enc.lv}）`:"";
@@ -117,7 +122,7 @@ function renderPanel(){
   else if(q.judge){
     h+=`<div class="note">${esc(q.notes.join("；")||"沒有加成")}</div>
     <div>淨優勢 ${q.net} → 要付 <b>${q.need}</b> 項代價成功，<b>${q.bigAt}</b> 項大成功${q.key?"（關鍵戰）":""}${q.mand.mp?`　另扣 MP ${q.mand.mp}`:""}</div>
-    ${d.shesh?"":step("hp","受傷 −"+q.unit+" HP")+step("mp","MP −2")+step("time","多花 2 小時")+step("item",it.act==="retreat"?"丟下 1 件東西":q.raid?"用掉 1 件物品":"用掉 1 件材料")}
+    ${d.shesh?"":step("hp","受傷 −"+q.unit+" HP")+step("mp","MP −2")+step("time","多花 2 小時")+itemPicker(q)}
     ${q.raid&&S.raid&&S.raid.shesh?`<div class="note">這場${S.raid.kind==="boss"?"魔王戰":"升級戰"}已經捨身過一次了。</div>`:`<label class="ck">捨身（拿一個部位的傷換大成功${q.raid?"，一場升級戰只能一次":""}）<select id="dsh"><option value="">不捨身</option>${SCAR_PARTS.map(p=>`<option value="${p}" ${d.shesh===p?"selected":""}>${p}：${SCAR_D[p]}${scarN(p)?`（已傷 ${scarN(p)}）`:""}</option>`).join("")}<option value="rand" ${d.shesh===true?"selected":""}>隨便哪裡</option></select></label>`}
     ${S.scars.length?`<div class="note">身上的捨身傷：${S.scars.length} 處。打贏魔王時還有 ${BAD_END_SCARS} 處以上就是壞結局。據點 S 級後可以開發萬靈藥治好一處。</div>`:""}
     <div>目前 → <b>${res}</b>${it.act==="combo"?"（組合失敗也會得到碎片）":""}</div>`;
@@ -125,20 +130,35 @@ function renderPanel(){
   h+=`<p><button class="pri" id="dok" ${q.err?"disabled":""}>執行</button> ${q.key?"":`<button id="dno">取消</button>`}</p></div>`;
   P.innerHTML=h;
   P.querySelectorAll("[data-s]").forEach(b=>b.onclick=()=>{const k=b.dataset.s.slice(0,-1),pl=b.dataset.s.slice(-1)==="+";d.p[k]=Math.max(0,Math.min(q.caps[k],d.p[k]+(pl?1:-1)));renderPanel()});
+  P.querySelectorAll("[data-pi]").forEach(b=>b.onclick=()=>{const L=payables(q),x=L[+b.dataset.pi];if(!x||d.p.items.length>=q.caps.item)return;d.p.items.push(x.t==="mat"?{t:"mat",n:x.n}:{t:x.t,it:x.it});d.p.item=d.p.items.length;renderPanel()});
+  P.querySelectorAll("[data-px]").forEach(b=>b.onclick=()=>{d.p.items.splice(+b.dataset.px,1);d.p.item=d.p.items.length;renderPanel()});
   P.querySelectorAll(".dsk").forEach(c=>c.onchange=()=>{let a=[...P.querySelectorAll(".dsk:checked")].map(x=>x.value);if(a.length>3){c.checked=false;a=a.filter(x=>x!==c.value)}it.skills=a;clampPick();renderPanel()});
   if($("dsk1"))$("dsk1").onchange=e=>{it.skills=e.target.value?[e.target.value]:[];clampPick();renderPanel()};
   if($("dob"))$("dob").onchange=e=>{const [t,n]=e.target.value.split("|");it.obj={t,n};renderPanel()};
   if($("dmv"))$("dmv").onchange=e=>{it.move=e.target.value;renderPanel()};
   if($("dcr"))$("dcr").onchange=e=>{it.craft=e.target.value;renderPanel()};
   if($("dpl"))$("dpl").onchange=e=>{it.place=e.target.value;renderPanel()};
-  if($("dwp"))$("dwp").onchange=e=>{it.weapon=e.target.checked;renderPanel()};
   if($("dsh"))$("dsh").onchange=e=>{const v=e.target.value;d.shesh=v==="rand"?true:v||false;renderPanel()};
   if($("dno"))$("dno").onclick=()=>{draft=null;renderAll()};
   if(q.raid&&S.raid&&S.raid.shesh)d.shesh=false;
   $("dok").onclick=()=>{const q2=planOf(it);if(q2.err)return;
     const out=exec(q2,Object.assign({},d.p,{shesh:d.shesh}));const said=d.said;draft=null;refresh();narrate(said)};
 }
-function clampPick(){const q=planOf(draft.it);["hp","mp","time","item"].forEach(k=>draft.p[k]=Math.min(draft.p[k],q.caps[k]))}
+function clampPick(){const q=planOf(draft.it);["hp","mp","time"].forEach(k=>draft.p[k]=Math.min(draft.p[k],q.caps[k]));draft.p.items=draft.p.items.slice(0,q.caps.item);draft.p.item=draft.p.items.length}
+/* 付物品：自己選付哪一件。魔法物品一天 3 次；同一場選第 2 次會壞。壞掉、丟失都不能修 */
+function itemPicker(q){
+  const d=draft;if(!q.caps.item)return `<div class="note">用掉物品：${q.raid?"升級戰只能付背包或身上的物品，":""}現在沒有能付的。</div>`;
+  const L=payables(q),cnt=new Map();d.p.items.forEach(x=>{const k=x.it||x.n;cnt.set(k,(cnt.get(k)||0)+1)});
+  const word=q.act==="retreat"?"丟下":"用掉";
+  const chosen=d.p.items.map((x,i)=>`<button class="chip on" data-px="${i}">${esc(x.t==="mat"?x.n:x.it.n)}${x.it&&x.it.mg&&d.p.items.filter(y=>y.it===x.it).indexOf(x)===1?"（會壞）":""} ✕</button>`).join(" ");
+  const full=d.p.items.length>=q.caps.item;
+  const opts=L.map((x,i)=>{const used=cnt.get(x.it||x.n)||0;const left=x.t==="mat"?(S.mats[x.n]||0)-used:x.it.mg?(used<2&&mgUses(x.it)>0?1:0):used?0:1;
+    if(left<=0||full)return "";const warn=x.it&&x.it.mg?(used?"・再付就壞":"・魔力 1 次"):x.t==="eq"?"・會壞":"";
+    return `<button class="chip" data-pi="${i}">${esc(x.label)}${warn}</button>`}).join(" ");
+  return `<div class="step"><span>${word}物品 ${d.p.items.length}/${q.caps.item}</span></div>
+    <div class="chips">${chosen||'<span class="note">（還沒選）</span>'}</div>${full?"":`<div class="chips">${opts}</div>`}
+    <div class="note">${word}的東西不能修、找不回來。魔法物品付 1 次＝用掉當天 1 次魔力；同一場付第 2 次就壞。</div>`;
+}
 
 /* ───── 自由敘事 ───── */
 async function sendSay(){
@@ -149,8 +169,10 @@ async function sendSay(){
   try{
     const it=await aiParse(t);
     busy=false;
-    if(S.enc&&!["fight","retreat","combo"].includes(it.act)){it.act=it.act==="talk"?"talk":"fight"}
+    if(S.enc&&!["fight","retreat","combo","potion"].includes(it.act)){it.act=it.act==="talk"?"talk":"fight"}
     if(it.act==="sleep"){sleep();refresh();narrate(t);return}
+    if(it.act==="potion"){const i=S.items.findIndex(x=>x.k==="potion"&&(!it.potion||x.n===it.potion));const r=usePotion(i<0?null:i);if(r.err)toast=r.err;refresh();narrate(t);return}
+    if(it.act==="delve"){const r=startSpecial();if(r&&r.err)toast=r.err;refresh();narrate(t);return}
     if(it.act==="talk"){log(`（你）${t}`);refresh();narrate(t);return}
     if(it.act==="hunt"||it.act==="rest"){const q=planOf(it);exec(q,{});refresh();narrate(t);return}
     openDraft(it,t);
@@ -175,7 +197,10 @@ function menuClick(k){
   if(k==="build")return sheetBuild();
   if(k==="movebase")return sheetMove();
   if(k==="evolve"){evolve();refresh();return}
-  if(k==="potion"){usePotion();refresh();return}
+  if(k==="potion")return sheetPotion();
+  if(k==="special"){const r=startSpecial();if(r&&r.err)toast=r.err;refresh();return}
+  if(k==="village")return sheetVillage();
+  if(k==="tele"){const r=teleport();if(r.err)toast=r.err;refresh();return}
   if(k==="cure")return sheetCure();
   ({skills:sheetSkills,frags:sheetFrags,bag:sheetBag,recipes:sheetRecipes,stats:sheetStats,ooc:sheetOoc,trade:sheetTrade,base:sheetBase}[k]||(()=>{}))();
 }
@@ -202,10 +227,44 @@ function sheetFrags(){
     $("xch").querySelectorAll("[data-c]").forEach(x=>x.onclick=()=>{exchange(cat,ch[+x.dataset.c]);save();sheetFrags()})});
 }
 function sheetBag(){
-  sheet(`<h3>背包</h3><p>材料：${MATS.filter(m=>S.mats[m]).map(m=>m+"×"+S.mats[m]).join("、")||"（空）"}</p>
-  <p>物品：${S.items.map(i=>esc(i.n)).join("、")||"（無）"}</p><p>金幣：${S.gold}</p>
+  const lock=!!(draft||busy||S.pending),inFight=!!S.enc;
+  let h=`<h3>裝備</h3><div class="note">武器 +1；遠程再 +1；近戰打遠程的對手要多付 1 項才能接近；雙手近戰大成功少付 1 項。盾、衣服、頭減傷。比對手等級低的裝備用完就壞（不能修）。✦＝魔法物品（一個效果、一天 3 次）。</div><table>`+
+    SLOTS.map(k=>{const it=S.eq[k];return `<tr><td>${k}</td><td>${it?esc(itemDesc(it)):'<span class="note">（空）</span>'}</td><td>${it&&!inFight?`<button data-uq="${k}" ${lock?"disabled":""}>卸下</button>`:""}</td></tr>`}).join("")+`</table>`;
+  h+=`<h3>背包 ${S.items.length}/${bagMax()}</h3><table>`+(S.items.map((it,i)=>`<tr><td>${esc(itemDesc(it))}</td><td>${it.slot&&!inFight?`<button data-eq="${i}" ${lock?"disabled":""}>裝上</button>`:""}${it.k==="potion"?`<button data-dr="${i}" ${lock?"disabled":""}>喝</button>`:""}</td></tr>`).join("")||"<tr><td>（空）</td></tr>")+`</table>`;
+  h+=`<p>材料：${MATS.filter(m=>S.mats[m]).map(m=>m+"×"+S.mats[m]).join("、")||"（空）"}</p><p>金幣：${S.gold}　語言：${S.langs.join("、")||"沒有"}</p>
   <p>看過的魔物技巧：${S.seen.map(x=>`${esc(x.n)}（${esc(x.from)}・${x.lv}${x.used?"・已偷學":""}）`).join("、")||"（無）"}</p>
-  <p>已知地點：${S.places.map(n=>{const p=placeOf(n);return `${n}（${p.e.join("・")}${p.water?"・水":""}${p.cave?"・岩穴":""}）`}).join("、")}</p>`);
+  <p>已知地點：${S.places.map(n=>{const p=placeOf(n);return `${n}（${KIND_WORD[p.kind]?KIND_WORD[p.kind]+"・":""}${p.e.join("・")}${p.water?"・有水":""}${p.cave?"・岩穴":""}${p.kind==="hostile"&&S.cleared.includes(n)?"・已打下":""}）`}).join("、")}</p>
+  <div class="note">相剋：水剋火、火剋木、木剋土、土剋風、風剋水；光暗互剋；切割剋包覆、重量剋硬化。剋到對手多 1 條優勢。</div>`;
+  sheet(h);
+  const R=()=>{save();sheetBag()};
+  $("sbody").querySelectorAll("[data-uq]").forEach(b=>b.onclick=()=>{const r=unequip(b.dataset.uq);if(r.err)toast=r.err;R()});
+  $("sbody").querySelectorAll("[data-eq]").forEach(b=>b.onclick=()=>{const r=equip(+b.dataset.eq);if(r.err)toast=r.err;R()});
+  $("sbody").querySelectorAll("[data-dr]").forEach(b=>b.onclick=()=>{usePotion(+b.dataset.dr);closeSheet()});
+}
+function sheetPotion(){
+  const L=S.items.map((it,i)=>[it,i]).filter(([it])=>it.k==="potion");
+  sheet(`<h3>喝藥</h3>${S.enc?`<div class="bad-t">戰鬥中喝藥，${esc(S.enc.n)}會打你一下（HP −${hpUnit(!!S.enc.raid)}）。</div>`:""}`+
+    L.map(([it,i])=>`<p><button data-dr="${i}">喝${esc(it.n)}</button> <span class="note">${potionWord(it.n)}</span></p>`).join(""));
+  $("sbody").querySelectorAll("[data-dr]").forEach(b=>b.onclick=()=>{usePotion(+b.dataset.dr);closeSheet()});
+}
+function sheetVillage(){
+  const P=villageAt();if(!P)return;const R=RACES[P.race],rel=relOf(P.race),lang=S.langs.includes(R.lang),lock=!!(S.enc||S.pending||busy);
+  let h=`<h3>${esc(P.n)}</h3><p>${P.race}對你：<b>${REL_WORD[rel]}</b>（你身上的異香讓他們討厭你，最多只到中立；警戒時價錢 ×2，中立 ×1.5）。金幣 ${S.gold}。</p>`;
+  if(rel<0)h+=`<p><button data-v="gift|gold" ${lock?"disabled":""}>送禮（金幣 ${VILLAGE_PRICE.gift}）</button> <button data-v="gift|core" ${lock?"disabled":""}>送禮（魔核 ×2）</button> <span class="note">態度 +1</span></p>`;
+  if(rel<-1)h+=`<p class="bad-t">他們敵視你，連話都不跟你說。先送禮。</p>`;
+  else{
+    if(!lang)h+=`<p><button data-v="lang" ${lock?"disabled":""}>學${R.lang}（${Math.ceil(VILLAGE_PRICE.lang*relMult(P.race))} 金幣，4 小時）</button> <span class="note">不會語言不能交易、不能學技能。</span></p>`;
+    else{
+      const has=racialOwned(P.race);
+      h+=`<p>${has?`你已經學過【${R.sk.n}】。`:`<button data-v="skill" ${lock?"disabled":""}>學【${R.sk.n}】（${Math.ceil(VILLAGE_PRICE.skill*relMult(P.race))} 金幣，6 小時）</button>`}<br><span class="note">${esc(R.sk.d)}放進「${FAC.find(f=>f.race===P.race).n}」效果更好；升級戰對上${R.vs}多一條優勢。</span></p>`;
+      h+=`<h4>買（今天的貨）</h4>`+villageStock().map((x,i)=>`<button data-v="buy|${i}" ${lock?"disabled":""}>${esc(x.n)} ${x.p}</button>`).join(" ");
+      h+=`<h4>賣</h4>`+MATS.filter(m=>S.mats[m]).map(m=>`<button data-v="sell|${m}" ${lock?"disabled":""}>${m}（${S.mats[m]}）+${SELL[m]||1}</button>`).join(" ");
+    }
+  }
+  sheet(h);
+  $("sbody").querySelectorAll("[data-v]").forEach(b=>b.onclick=()=>{const [k,a]=b.dataset.v.split("|");
+    const r=k==="gift"?villageGift(a):k==="lang"?villageLang():k==="skill"?villageSkill():k==="buy"?villageBuy(+a):villageSell(a,1);
+    if(r&&r.err)toast=r.err;save();sheetVillage()});
 }
 function sheetRecipes(){
   sheet(`<h3>配方</h3><table>${RECIPES.map(r=>`<tr><td><b>${r.n}</b></td><td>${Object.entries(r.need).map(([m,n])=>m+"×"+n).join("＋")}</td><td class="note">${r.d}</td></tr>`).join("")}</table>
@@ -214,7 +273,7 @@ function sheetRecipes(){
 function exportText(){
   return `孤獨異世界紀錄 v${VER}\n第${S.day}天 ${String(S.hour).padStart(2,"0")}:00　第${S.ch}章　在${S.at}　${S.lv}級 BP${bpOf()}　HP ${S.hp}/${hpMax()}　MP ${S.mp}\n`+
    `求生：${NEEDS.map(k=>k+(S.needs[k]?"✔":"✘")).join(" ")}\n技能：${S.skills.map(s=>`${s.n}${s.lv}(用${s.used})`).join("、")}\n倉庫：${S.store.map(s=>s.n).join("、")||"無"}\n`+
-   `碎片：${S.frags.length}　看過的技巧：${S.seen.map(x=>x.n).join("、")||"無"}\n材料：${MATS.filter(m=>S.mats[m]).map(m=>m+"×"+S.mats[m]).join("、")}　物品：${S.items.map(i=>i.n).join("、")}\n`+
+   `碎片：${S.frags.length}　看過的技巧：${S.seen.map(x=>x.n).join("、")||"無"}\n材料：${MATS.filter(m=>S.mats[m]).map(m=>m+"×"+S.mats[m]).join("、")}　物品：${S.items.map(i=>i.n).join("、")}　裝備：${SLOTS.filter(k=>S.eq[k]).map(k=>k+"="+S.eq[k].n).join("、")}　金幣 ${S.gold}\n`+
    `統計：${JSON.stringify(S.stats)}\n紀錄：\n`+S.log.map(l=>`第${l.day}天 ${String(l.hour).padStart(2,"0")}:00 ${l.t}`).join("\n");
 }
 function sheetStats(){
@@ -261,11 +320,11 @@ function sheetBuild(){
   const b=canBuild();if(!b||!b.ok)return;
   const P=RAID_PLAN[b.target],n=P.rounds||(P.army+P.mon.length),lose=Math.floor((n-1)/2)+1;
   const what=P.rounds?`一隻 ${P.mon} 級個體，${P.rounds} 回合`:`${P.army} 場 ${b.target} 級軍隊＋${P.mon.map(g=>g+" 級").join("、")}魔物（${n} 場）`;
-  const weap=S.items.filter(i=>i.k==="white").length,pot=S.items.filter(i=>i.k==="potion").length,pay=S.items.filter(i=>i.k==="white"||i.k==="potion").length;
+  const weap=hasWeapon()?1:0,pot=S.items.filter(i=>i.k==="potion").length,pay=payables({raid:true}).length;
   const unit=hpUnit(true),warn=[];
   if(S.hp<hpMax())warn.push(`HP 沒滿（${S.hp}/${hpMax()}）。輸一場扣 ${unit}，${S.hp<=unit?"<b>輸一場就會死</b>":`大約輸 ${Math.ceil(S.hp/unit)} 場會死`}。`);
   if(S.mp<mpMax())warn.push(`MP 沒滿（${S.mp}/${mpMax()}）。用技能一場扣 1，付代價一次扣 2。`);
-  if(!weap)warn.push("沒有武器（用武器一場 +1）。");
+  if(!weap)warn.push("沒有裝備武器（武器一場 +1，遠程再 +1）。");
   if(!pot)warn.push("沒有藥。");
   const top=P.rounds?P.mon:P.mon.reduce((a,g)=>gIdx(g)>gIdx(a)?g:a);
   if(gIdx(top)-gIdx(S.lv)>=2)warn.push(`你是 ${S.lv} 級，對手最高 ${top} 級，差 ${gIdx(top)-gIdx(S.lv)} 級。`);
@@ -273,7 +332,7 @@ function sheetBuild(){
   if(S.hour>=18)warn.push("天快黑了，打完才能睡（升級戰中間不能睡）。");
   sheet(`<h3>升級據點 → ${b.target}？</h3>
   <p>升級後<b>馬上</b>開打：${what}。輸 ${lose} 場或 HP 歸零，據點被攻破；中途逃走＝放棄據點。被攻破只能搬家（去沒當過據點的地方）或陣亡。還能搬的地方：${moveTargets().length?esc(moveTargets().join("、")):"<b>沒有了，被攻破就是陣亡</b>"}。</p>
-  <p class="note">你現在：${S.lv} 級，HP ${S.hp}/${hpMax()}，MP ${S.mp}/${mpMax()}，武器 ${weap}、藥 ${pot}（可付代價的物品 ${pay} 件）；運作中的設施 ${facOn().length} 座（擋 ${facBlock()} 條劣勢）。</p>
+  <p class="note">你現在：${S.lv} 級，HP ${S.hp}/${hpMax()}，MP ${S.mp}/${mpMax()}，武器 ${hasWeapon()?esc(S.eq.武器.n):"沒有"}、藥 ${pot}（可付代價的物品 ${pay} 件，一場最多付 1 件）；運作中的設施 ${facOn().length} 座（擋 ${facBlock()} 條劣勢）。</p>
   ${warn.length?`<div class="box enc"><b>還沒準備好：</b><br>${warn.join("<br>")}<br><span class="note">先睡一覺、做武器和藥再來比較好。</span></div>`:`<p>準備好了。</p>`}
   <div class="row2"><button class="${warn.length?"":"pri"}" id="bgo">升級，開打</button><button class="${warn.length?"pri":""}" id="bno">先準備</button></div>`);
   $("bgo").onclick=()=>{closeSheet();build();refresh()};$("bno").onclick=()=>closeSheet();
