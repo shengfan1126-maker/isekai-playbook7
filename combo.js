@@ -111,7 +111,7 @@ function learnMove(steps,how){
   if(!hasAct(steps))return null;
   const key=stepKey(steps),sig=moveSig(steps);if(moves().some(m=>m.key===key||(m.sig||moveSig(m.steps))===sig))return null;
   const m={n:moveName(steps),steps:steps.map(cleanStep),key,sig,day:S.day,how,used:0};moves().push(m);
-  growAfterMove(m);return m;
+  return m;
 }
 /* ───── v5.4：招長成技能 ─────
    一個技能參與的招每攢 3 個 → 三選一：這個技能進化一階，或長出一個帶它標籤的新技能 */
@@ -208,24 +208,6 @@ function artGen(only){
   return ok;
 }
 function pickW(L,f){f=f||(x=>x.w);let t=L.reduce((a,x)=>a+f(x),0)*rand();for(const x of L){t-=f(x);if(t<0)return x}return L[L.length-1]}
-function experiment(only,max){
-  const e=calmErr();if(e)return {err:e};
-  if(only&&only.length&&!only.some(n=>S.skills.concat(itemSkills()).some(s=>s.n===n)))return {err:`技能表裡沒有${only.join("、")}`};
-  const got=[],extra={lines:[]},tried={};let h=0,why="";
-  /* 打人、控制的招多一點；這次實驗已經用過的技能少一點，讓每個技能都輪到 */
-  const wt=c=>c.w*(["傷害","控制"].includes(c.steps[c.steps.length-1].prim)?2:1)/(1+c.steps.reduce((a,x)=>a+(tried[x.src]||0),0));
-  while(S.hour+h+1<24&&(!max||h<max)){
-    const C=artGen(only);if(!C.length){why=h?"能拼的都拼過了，或技能今天的次數用完了":"想不出新的搭配：技能今天的次數用完了，或能拼的都拼過了。換個地方、拿到新材料、學新技能，就有新的搭配。";break}
-    const c=pickW(C,wt),m=learnMove(c.steps,"實驗");h++;c.steps.forEach(x=>tried[x.src]=(tried[x.src]||0)+1);
-    uniq(c.steps.map(x=>x.src)).forEach(n=>{const s=S.skills.concat(itemSkills()).find(y=>y.n===n);if(s)useSkill(s,extra)});
-    got.push(m);
-  }
-  if(!h)return {err:why};
-  count(S.stats.actions,"experiment");
-  log(`[專心實驗] 花了 ${h} 小時，想到 ${got.length} 招${only&&only.length?`（只用${only.join("、")}）`:""}。${why?why+"。":""}`,"act");
-  got.forEach(m=>{log(`★ 學會招式【${m.n}】：${moveText(m)}`,"good");moveNeeds(m)});
-  advance(h);return {ok:true,h,learned:got.map(m=>m.n)};
-}
 /* 戰鬥外打字試招（大賢者拆步驟）：成立就學會；花 1 小時、參與的技能各扣一次，不扣 MP */
 function practice(steps){
   const e=calmErr();if(e)return {err:e};
@@ -242,3 +224,71 @@ function practice(steps){
   advance(1);return {ok:true,m};
 }
 function movesListText(){return moves().map(m=>`${m.n}：${JSON.stringify(m.steps.map(s=>({src:s.src,prim:s.prim,kind:s.kind,tags:s.tags,to:s.to})))}`).join("\n")}
+
+/* ───── v5.5：只收集技能（用戶 11-12 23:59～11-13 00:10）─────
+   招式退回敘事。實驗（戰鬥外，一天 2 次）、戰鬥中組合成立 → 三選一：進化現有技能／新技能／化成據點點數。
+   「這不是我要的」重抽三個，不扣東西，每次三選一限一次。 */
+const EXP_PER_DAY=2,EXP_HOURS=3;
+const canLvUp=s=>gIdx(s.lv)<Math.min(6,pg()+1);
+const pickPts=()=>Math.ceil(ITEM_PTS*(1+pg())*devoteMult());
+const skillPts=s=>Math.ceil(ITEM_PTS*(1+gIdx(s.lv))*devoteMult());
+const skillGold=s=>Math.ceil(3*(1+gIdx(s.lv))*sellMult());
+const canSellSkill=()=>!!((typeof villageAt==="function"&&villageAt())||(S.ch>=2&&nestIdx()>=2));
+function newSkillPool(tags){const pool=COMBOS.concat(stealPool()).filter(t=>!nameTaken(t.n));const fit=pool.filter(t=>(t.e||[]).some(e=>tags.includes(e)));return fit.length?fit:pool}
+function buildPick(why,evoFrom,tags,ex){
+  ex=ex||[];const ch=[];
+  const ev=shuffle(evoFrom.filter(s=>canLvUp(s)&&!ex.includes(s.n))).sort((a,b)=>gIdx(a.lv)-gIdx(b.lv))[0]
+    ||shuffle(S.skills.filter(s=>canLvUp(s)&&!ex.includes(s.n))).sort((a,b)=>gIdx(a.lv)-gIdx(b.lv))[0];
+  if(ev)ch.push({k:"evo",n:ev.n,from:ev.lv,to:GRADES[gIdx(ev.lv)+1]});
+  shuffle(newSkillPool(tags).filter(t=>!ex.includes(t.n))).slice(0,ev?1:2).forEach(t=>ch.push({k:"new",t}));
+  ch.push({k:"pts",v:pickPts()});
+  return {why,evoFrom:evoFrom.map(s=>s.n),tags,ch,re:0};
+}
+function openPick(why,evoFrom,tags){S.pick=buildPick(why,evoFrom,tags)}
+function rerollPick(){
+  const p=S.pick;if(!p)return {err:"現在沒有三選一"};if(p.re)return {err:"這次已經重抽過了（每次限一次）"};
+  const ex=p.ch.map(c=>c.k==="evo"?c.n:c.k==="new"?c.t.n:"");
+  S.pick=buildPick(p.why,p.evoFrom.map(skillByName).filter(Boolean),p.tags,ex);S.pick.re=1;log("（重抽了一次三選一）");return {ok:true};
+}
+function choosePick(i){
+  const p=S.pick,c=p&&p.ch[i];if(!c)return {err:"沒有這個選項"};
+  if(c.k==="evo"){const s=skillByName(c.n);if(s&&lvUp(s))log(`★ ${p.why}：【${s.n}】進化成 ${s.lv}。`,"good")}
+  else if(c.k==="new"){const t=c.t,where=learnSkill(t,"F");
+    if(where==="滿了")return {err:"技能表和倉庫都滿了：先到「技能」整合、捐掉或賣掉幾個"};
+    if(t.steal){const sn=S.seen.find(x=>x.n===t.steal);if(sn)sn.used=true}
+    log(`★ ${p.why}：學會【${t.n}】${where==="倉庫"?"（技能表滿了，放進倉庫）":""}。${t.d||""}`,"good");gainExist(1);
+    const out={lines:[]};applyEffect({e:t.e,f:t.f||"",n:t.n,g:t.g},out)}
+  else{S.pts+=c.v;log(`★ ${p.why}：心得化成據點點數 +${c.v}。`,"good")}
+  S.pick=null;return {ok:true};
+}
+/* 專心實驗：一天 2 次，一次 3 小時，不用選技能、不扣 MP、不扣次數。程式自己拿標籤拼一組試試，做完出三選一 */
+function experiment(){
+  const e=calmErr();if(e)return {err:e};
+  if(S.pick)return {err:"先選完上一個三選一"};
+  if((S.expToday||0)>=EXP_PER_DAY)return {err:`今天已經實驗 ${EXP_PER_DAY} 次了，明天再來`};
+  if(S.hour+EXP_HOURS>=24)return {err:`太晚了，實驗要 ${EXP_HOURS} 小時，先睡吧`};
+  S.expToday=(S.expToday||0)+1;
+  const C=artGen([]),c=C.length?pickW(C):null;
+  const used=c?uniq(c.steps.map(x=>x.src)).map(skillByName).filter(Boolean):[];
+  const tags=c?uniq(c.steps.flatMap(x=>x.tags)):uniq(S.skills.flatMap(s=>s.e));
+  count(S.stats.actions,"experiment");
+  log(`[專心實驗] 花了 ${EXP_HOURS} 小時${c?`，試了：${c.steps.map(stepWord).join(" → ")}`:"，把手上的技能翻來覆去地試"}。有了點眉目（今天第 ${S.expToday}/${EXP_PER_DAY} 次）。`,"act");
+  openPick("實驗",used,tags);advance(EXP_HOURS);return {ok:true};
+}
+/* 戰鬥（一般遭遇）組合成立（至少一步新用法）→ 三選一；同一種組合第二次只抵代價 */
+function artPick(q,out){
+  const a=q.art;if(!a.cut)return;
+  const ok=keepOk(q.it.steps,a.res);if(!ok.length||!hasAct(ok))return;   /* 只有附加、增幅成立，不算組合成立 */
+  const sig=moveSig(ok);S.artSeen=S.artSeen||[];
+  if(S.artSeen.includes(sig)){out.lines.push("這種組合用過了，這次只抵代價。");return}
+  S.artSeen.push(sig);
+  if(S.pick){out.lines.push("（還有一個三選一沒選，這次的體悟先記著）");return}
+  openPick("靈光一閃",a.skills,uniq(ok.flatMap(x=>x.tags||[])));out.lines.push("靈光一閃！這個組合讓你有了新的體悟（三選一）。");
+}
+/* 技能滿了：忘掉、捐掉（據點點數）、賣掉（村子或商人那裡，金幣） */
+function skillAt(where,i){return (where==="store"?S.store:S.skills)[i]}
+function dropSkill(where,i){const L=where==="store"?S.store:S.skills;return L.splice(i,1)[0]}
+function forgetSkill(where,i){const s=skillAt(where,i);if(!s)return {err:"沒有"};dropSkill(where,i);log(`忘掉了【${s.n}】。`);return {ok:true}}
+function donateSkill(where,i){const s=skillAt(where,i);if(!s)return {err:"沒有"};const v=skillPts(s);dropSkill(where,i);S.pts+=v;log(`把【${s.n}】（${s.lv}）的心得化成據點點數 +${v}。`,"good");return {ok:true}}
+function sellSkill(where,i){const s=skillAt(where,i);if(!s)return {err:"沒有"};if(!canSellSkill())return {err:"要在村子裡，或據點 D 級以上有商人來，才能把技能教給別人換錢"};
+  const g=skillGold(s);dropSkill(where,i);S.gold+=g;log(`把【${s.n}】（${s.lv}）教給別人，+${g} 金幣。`,"good");return {ok:true}}

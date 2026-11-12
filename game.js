@@ -229,7 +229,7 @@ function exec(q,p){
   if(q.useSkill)useSkill(q.useSkill,out);
   if(q.art){q.art.skills.forEach(s=>useSkill(s,out));q.art.mats.forEach(m=>{S.mats[m]=Math.max(0,(S.mats[m]||0)-1);out.paid.push(`${m} −1（拿來組合）`)});
     out.lines.push("組合："+q.art.res.map(r=>`${r.say||r.head}${r.ok?(r.novel?"（新用法）":""):`（沒用：${r.why}）`}`).join("；")+"。");
-    if(q.art.idle.length)out.lines.push(q.art.idle.join("、")+"，沒能發動。");artAfter(q,out);}
+    if(q.art.idle.length)out.lines.push(q.art.idle.join("、")+"，沒能發動。");artPick(q,out);}
   if(q.act==="combo")q.sks.forEach(s=>useSkill(s,out));
   count(S.stats.actions,q.act);
   const P=placeOf();
@@ -484,7 +484,7 @@ function night(voluntary){
   if(foodCount()>=5)tick("食物","存糧夠吃好幾天了");
   const fl=facDay();if(fl)lines.push(fl);
   S.day++;S.hour=WAKE;S.drank=false;
-  S.skills.concat(S.store).forEach(s=>s.today=0);S.itemUsed={};
+  S.skills.concat(S.store).forEach(s=>s.today=0);S.expToday=0;S.itemUsed={};
   S.items.concat(SLOTS.map(k=>S.eq[k]).filter(Boolean)).forEach(it=>{if(it.use)it.use=0;if(it.danced)it.danced=0});S.burst=0;
   log(lines.join(" "));
   log(`天亮了，你醒了。這是你異世界一人生存的第 ${S.day} 天。今天要做什麼？`,"day");
