@@ -21,7 +21,7 @@ const ACT_CAT={gather:"生存",explore:"機動",fight:"戰鬥",craft:"製作",re
 const ITEM_E={木材:["木"],石片:["切割","硬化"],草:["木"],獸皮:["包覆"],骨頭:["硬化"],生肉:["木"],熟肉:["火"],野果:["木"],魔核:["魔力"],礦石:["土","硬化"],魔晶:["魔力","光"],
   石刀:["切割"],石斧:["切割","重量"],石矛:["切割"],鐵劍:["切割","硬化"],投石索:["移動"],短弓:["木","切割"],木盾:["木","硬化"],石袋:["土"],箭矢袋:["包覆"],
   皮甲:["包覆","硬化"],皮帽:["包覆"],草鞋:["木"],水袋:["水","包覆"],背包:["包覆"],草藥膏:["木"],紅藥水:["木","火"],藍藥水:["水","魔力"],紫藥水:["魔力"]};
-const FUSED_NAME={魔法:"雜糅魔法",戰鬥:"亂戰技",生存:"荒野生活術",機動:"野獸直覺",製作:"巧手",社交:"話術",天生:"偷學心得"};
+const FUSED_NAME={魔法:"雜糅魔法",戰鬥:"亂戰技",生存:"荒野生活術",機動:"野獸直覺",製作:"工匠心得",社交:"話術",天生:"偷學心得"};
 /* 捨身：拿一個部位的傷換大成功。同一個部位可以再傷（效果疊加）。據點 S 級後可以開發萬靈藥治好一處 */
 const SCAR_PARTS=["眼睛","單手","腿","身體","心靈"];
 const SCAR_D={眼睛:"視力受損，探索時間加倍",單手:"製作、組合（施法）時間加倍",腿:"移動時間加倍",身體:"HP 上限 −20%，睡覺也回不滿",心靈:"MP 上限 −1，睡覺也回不滿"};
@@ -91,9 +91,12 @@ function rerollStart(i){
   const l=S.log.find(x=>x.t.startsWith("你的技能："));
   if(l)l.t=`你的技能：${S.skills.map(s=>`【${s.n}】${s.d}`).join(" ")}`;
 }
+/* v5.4：名字用的字一樣（手巧／巧手、岩火彈／火岩彈）就算重複 */
+const charKey=n=>[...String(n)].sort().join("");
+function nameTaken(n){const k=charKey(n);return S.skills.concat(S.store).some(s=>s.n===n||charKey(s.n)===k)}
 function mkSkill(t,lv){return {n:t.n,e:t.e.slice(),c:t.c.slice(),lv:lv||"F",used:0,today:0,d:t.d||""}}
 function learnSkill(t,lv){
-  if(owned(t.n))return "已經會了";
+  if(owned(t.n)||nameTaken(t.n))return "已經會了";
   const s=mkSkill(t,lv);
   if(S.skills.length<SKILL_SLOTS){S.skills.push(s);return "技能表"}
   if(S.store.length<STORE_MAX[S.lv]){S.store.push(s);return "倉庫"}
@@ -413,7 +416,7 @@ function stealPool(){
 }
 function drawChoices(cat){
   const names=[],out=[];
-  const add=list=>shuffle(list).forEach(x=>{if(out.length<3&&!names.includes(x.n)&&!owned(x.n)){names.push(x.n);out.push(x)}});
+  const add=list=>shuffle(list).forEach(x=>{if(out.length<3&&!names.includes(x.n)&&!owned(x.n)&&!nameTaken(x.n)){names.push(x.n);out.push(x)}});
   if(cat==="天生"||!cat)add(stealPool());
   add(COMBOS.filter(x=>!cat||x.c.includes(cat)));
   if(out.length<3&&cat&&!owned(FUSED_NAME[cat]||cat+"心得")){

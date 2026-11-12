@@ -95,17 +95,59 @@ const CTRL_WORD={束縛:"縛",減速:"緩",致盲:"閃",擊退:"推",窒息:"悶
 function moves(){return S.moves||(S.moves=[])}
 const cleanStep=s=>({src:s.src,prim:s.prim,kind:s.kind||"",tags:(s.tags||[]).slice(),to:s.to||"",say:s.say||""});
 function stepKey(steps){return steps.map(s=>[s.src,s.prim,s.kind||"",(s.tags||[]).slice().sort().join(""),s.to||""].join("/")).join("|")}
+const isAct=x=>!["附加","增幅"].includes(x.prim);
+const hasAct=steps=>steps.some(isAct);
 function moveName(steps){
-  const last=steps[steps.length-1],w=last.prim==="控制"?CTRL_WORD[last.kind]||"控":PRIM_WORD[last.prim]||"招";
-  const tg=uniq(steps.flatMap(s=>s.tags||[])).slice(0,2).join("");
-  const base=(last.src==="自己"||last.src==="周圍"?"":last.src.slice(0,2))+tg+w;let n=base,k=2;
+  const acts=steps.filter(isAct),main=acts[acts.length-1]||steps[steps.length-1],w=main.prim==="控制"?CTRL_WORD[main.kind]||"控":PRIM_WORD[main.prim]||"招";
+  const tg=uniq(steps.flatMap(s=>(s.tags||[]).map(t=>t[0]))).slice(0,2).join("");
+  const base=(main.src==="自己"||main.src==="周圍"?"":main.src.slice(0,2))+tg+w;let n=base,k=2;
   while(moves().some(m=>m.n===n))n=base+(k++);return n;
 }
 function stepWord(s){return `${s.src}${s.prim==="控制"?s.kind:s.prim}${(s.tags||[]).length?"〔"+s.tags.join("")+"〕":""}${s.prim==="附加"&&s.to?"→"+s.to:""}${s.prim==="增幅"&&s.to?"→第"+s.to+"步":""}`}
 function moveText(m){return m.steps.map(stepWord).join(" → ")}
+/* 同一招：用到的東西一樣、標籤一樣、最後做的事一樣（順序不同也算同一招） */
+function moveSig(steps){const l=steps[steps.length-1];return `${uniq(steps.map(x=>x.src)).sort().join("+")}|${uniq(steps.flatMap(x=>x.tags||[])).sort().join("")}|${l.prim}${l.kind||""}`}
 function learnMove(steps,how){
-  const key=stepKey(steps);if(moves().some(m=>m.key===key))return null;
-  const m={n:moveName(steps),steps:steps.map(cleanStep),key,day:S.day,how,used:0};moves().push(m);return m;
+  if(!hasAct(steps))return null;
+  const key=stepKey(steps),sig=moveSig(steps);if(moves().some(m=>m.key===key||(m.sig||moveSig(m.steps))===sig))return null;
+  const m={n:moveName(steps),steps:steps.map(cleanStep),key,sig,day:S.day,how,used:0};moves().push(m);
+  growAfterMove(m);return m;
+}
+/* ───── v5.4：招長成技能 ─────
+   一個技能參與的招每攢 3 個 → 三選一：這個技能進化一階，或長出一個帶它標籤的新技能 */
+function skillByName(n){return S.skills.concat(S.store).find(x=>x.n===n)}
+function growAfterMove(m){
+  uniq(m.steps.map(x=>x.src)).forEach(n=>{const s=skillByName(n);if(!s)return;s.mv=(s.mv||0)+1;if(s.mv%3===0)(S.growQ=S.growQ||[]).push(s.n)});
+  nextGrow();
+}
+function growChoices(s){
+  const ch=[],cap=Math.min(6,pg()+1);
+  if(gIdx(s.lv)<cap)ch.push({evo:true,n:s.n,d:`【${s.n}】進化成 ${GRADES[gIdx(s.lv)+1]}（階層更高，對上高階的對手才派得上用場）`});
+  shuffle(COMBOS.filter(t=>t.e.some(e=>s.e.includes(e))&&!nameTaken(t.n))).forEach(t=>{if(ch.length<3)ch.push(t)});
+  if(ch.length<3)drawChoices(s.c[0]).forEach(t=>{if(ch.length<3&&!nameTaken(t.n)&&!ch.some(x=>x.n===t.n))ch.push(t)});
+  return ch;
+}
+function nextGrow(){
+  if(S.grow||!S.growQ||!S.growQ.length)return;
+  const n=S.growQ.shift(),s=skillByName(n);if(!s)return nextGrow();
+  const ch=growChoices(s);if(!ch.length)return nextGrow();
+  S.grow={sk:n,mv:s.mv,ch};
+}
+function pickGrow(i){
+  const g=S.grow;if(!g||!g.ch[i])return {err:"沒有這個選項"};
+  const c=g.ch[i],s=skillByName(g.sk);S.grow=null;
+  if(c.evo){if(s&&lvUp(s))log(`★ 【${s.n}】的招攢到 ${g.mv} 個，進化成 ${s.lv}。`,"good")}
+  else{const where=learnSkill(c,s?s.lv:"F");
+    log(`★ 【${g.sk}】的招攢到 ${g.mv} 個，長出新技能【${c.n}】${where==="倉庫"?"（技能表滿了，放進倉庫）":where==="滿了"?"（技能表和倉庫都滿了，沒學到）":""}。${c.d||""}`,"good");
+    if(where==="技能表"||where==="倉庫"){gainExist(1);applyEffect({e:c.e,f:c.f||"",n:c.n,g:c.g},null)}}
+  nextGrow();return {ok:true};
+}
+/* 招裡帶火、水、土牆 → 求生打勾（和舊的組合一樣） */
+function moveNeeds(m){
+  const T=uniq(m.steps.flatMap(x=>x.tags||[]));
+  if(T.includes("火"))tick("火",`用【${m.n}】弄出了火`);
+  if(T.includes("水")){tick("水",`用【${m.n}】弄到了水`);S.drank=true}
+  if(m.steps.some(x=>["環境","防護"].includes(x.prim)&&(x.tags||[]).includes("土")))tick("避難所",`用【${m.n}】把土堆成能擋風雨的牆`);
 }
 function findMove(t){return moves().slice().sort((a,b)=>b.n.length-a.n.length).find(m=>t.includes(m.n))}
 function renameMove(a,b){b=String(b||"").trim();const m=moves().find(x=>x.n===a);if(!m)return {err:`沒有【${a}】這一招`};
@@ -160,8 +202,8 @@ function artGen(only){
       A.tags.forEach(t=>{if(t===tb[0]||ART_PRIM[B.p].includes(t)||(t==="風"&&tb.includes("火"))||t==="魔力")
         C.push({w:2,steps:[{src:B.n,prim:B.p,kind:"",tags:[tb[0]],to:""},{src:A.n,prim:"增幅",kind:"",tags:[t],to:"1"}]})})});
   });
-  const have={};moves().forEach(m=>have[m.key]=1);const seen={},ok=[];
-  C.forEach(c=>{const k=stepKey(c.steps);if(have[k]||seen[k])return;seen[k]=1;
+  const have={};moves().forEach(m=>have[m.sig||moveSig(m.steps)]=1);const seen={},ok=[];
+  C.forEach(c=>{const k=moveSig(c.steps);if(have[k]||seen[k])return;seen[k]=1;
     const r=artCheck(c.steps,{practice:true,src});if(r.novel&&r.res.every(x=>x.ok)&&!r.idle.length)ok.push(c)});
   return ok;
 }
@@ -181,7 +223,7 @@ function experiment(only,max){
   if(!h)return {err:why};
   count(S.stats.actions,"experiment");
   log(`[專心實驗] 花了 ${h} 小時，想到 ${got.length} 招${only&&only.length?`（只用${only.join("、")}）`:""}。${why?why+"。":""}`,"act");
-  got.forEach(m=>log(`★ 學會招式【${m.n}】：${moveText(m)}`,"good"));
+  got.forEach(m=>{log(`★ 學會招式【${m.n}】：${moveText(m)}`,"good");moveNeeds(m)});
   advance(h);return {ok:true,h,learned:got.map(m=>m.n)};
 }
 /* 戰鬥外打字試招（大賢者拆步驟）：成立就學會；花 1 小時、參與的技能各扣一次，不扣 MP */
@@ -193,10 +235,10 @@ function practice(steps){
   const lines=["試招："+a.res.map(r=>`${r.say||r.head}${r.ok?(r.novel?"（新用法）":"（照本來的用法）"):`（沒成立：${r.why}）`}`).join("；")+"。"];
   if(a.idle.length)lines.push(a.idle.join("、")+"，沒能發動。");
   let m=null;S.lastArt=null;
-  if(a.res.every(r=>r.ok)&&!a.idle.length){if(a.novel){m=learnMove(steps,"試招");lines.push(m?`學會招式【${m.n}】。`:"這一招已經會了。")}else lines.push("都是照本來的用法，不算新招。")}
+  if(a.res.every(r=>r.ok)&&!a.idle.length){if(!hasAct(steps))lines.push("只有附加、增幅，還沒拿來做事；再加一步（例如用加過標籤的東西攻擊）才算一招。");else if(a.novel){m=learnMove(steps,"試招");lines.push(m?`學會招式【${m.n}】。`:"這一招已經會了（一樣的東西、一樣的標籤、一樣的動作）。")}else lines.push("都是照本來的用法，不算新招。")}
   else{const ok=keepOk(steps,a.res);if(a.novel&&ok.length){S.lastArt=ok;lines.push("打「記下」可以只把成立的部分記成招。")}}
   count(S.stats.actions,"practice");log(`[試招] ${lines.join(" ")}`,"act");out.lines.forEach(x=>log(x,"good"));
-  if(m)log(`★ 學會招式【${m.n}】：${moveText(m)}`,"good");
+  if(m){log(`★ 學會招式【${m.n}】：${moveText(m)}`,"good");moveNeeds(m)}
   advance(1);return {ok:true,m};
 }
 function movesListText(){return moves().map(m=>`${m.n}：${JSON.stringify(m.steps.map(s=>({src:s.src,prim:s.prim,kind:s.kind,tags:s.tags,to:s.to})))}`).join("\n")}

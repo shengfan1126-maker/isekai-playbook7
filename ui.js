@@ -13,7 +13,7 @@ function heal(){S.store=S.store||[];S.frags=S.frags||[];S.seen=S.seen||[];S.scar
   if(S.ch>=2&&!S.bases){S.bases=[];   /* 舊存檔：從紀錄找出當過據點的地方 */
     S.log.forEach(l=>{const m=l.t.match(/你在(.+?)建立了 F 級據點/)||l.t.match(/你把據點搬到(.+?)[。，]/);if(m&&!S.bases.includes(m[1]))S.bases.push(m[1])});
     if(S.base&&!S.bases.includes(S.base))S.bases.push(S.base)}
-  if(S.pending&&S.pending.type==="raid")S.pending=null;if(!S.over)autoEvolve();if(S.enc&&S.enc.raid&&!S.raid)S.enc=null;offerFac()}
+  S.growQ=S.growQ||[];if(!S.mvInit){S.mvInit=1;(S.moves||[]).forEach(m=>uniq(m.steps.map(x=>x.src)).forEach(n=>{const k=S.skills.concat(S.store).find(x=>x.n===n);if(k){k.mv=(k.mv||0)+1;if(k.mv%3===0)S.growQ.push(k.n)}}))}if(!S.grow&&typeof nextGrow==="function")nextGrow();if(S.pending&&S.pending.type==="raid")S.pending=null;if(!S.over)autoEvolve();if(S.enc&&S.enc.raid&&!S.raid)S.enc=null;offerFac()}
 
 /* ───── 狀態 ───── */
 function renderStatus(){
@@ -81,6 +81,10 @@ function renderPanel(){
       P.querySelectorAll("[data-mv]").forEach(b=>b.onclick=()=>{failChoice(b.dataset.mv);refresh()});$("dd").onclick=()=>{failChoice(false);refresh()};return}
     P.innerHTML=h+`<div class="box">365 天到了。魔王（BP 99）復活，帶著六個方位的大軍朝你來了。<br><span class="note">六場（每個方位一支軍團＋一隻 S 級魔物），最後是魔王。輸 4 場或輸給魔王就結束。魔王戰逃不掉。</span><br><button class="pri" id="go">迎擊</button></div>`;
     $("go").onclick=()=>{startBoss();refresh()};return}
+  if(S.grow&&!draft&&!S.enc){const g=S.grow;
+    P.innerHTML=h+`<div class="box"><b>【${esc(g.sk)}】參與的招攢到 ${g.mv} 個了</b><br><span class="note">三選一：讓它進化，或長出一個帶它標籤的新技能。</span>`+
+      g.ch.map((t,i)=>`<p><button data-gw="${i}"><b>${t.evo?"進化【"+esc(t.n)+"】":esc(t.n)}</b>${t.evo?"":`　${esc((t.c||[]).join("・"))}｜${esc((t.e||[]).join("・"))}`}<br><span class="note">${esc(t.d||"")}</span></button></p>`).join("")+`</div>`;
+    P.querySelectorAll("[data-gw]").forEach(b=>b.onclick=()=>{pickGrow(+b.dataset.gw);refresh()});return}
   if(S.facPick&&!draft&&!S.enc){
     P.innerHTML=h+`<div class="box"><b>蓋一座設施（三選一）</b>　據點 ${S.nest} 級可以有 ${FAC_SLOTS(nestIdx())} 座，現在 ${S.fac.length} 座。<br><span class="note">蓋好後要放一個技能進去才會運作（主角一個人，沒有人手）。每座在運作的設施，升級戰時擋掉 1 條「多打一」的劣勢。</span>`+
       S.facPick.map(n=>{const f=facDef(n);return `<p><button data-fp="${esc(n)}"><b>${esc(n)}</b>　對口：${esc(f.cat)}<br><span class="note">${esc(f.d)}</span></button></p>`}).join("")+`</div>`;
@@ -93,7 +97,7 @@ function renderPanel(){
     P.innerHTML=h+`<div class="box enc"><b>${R?(boss?"魔王戰":"升級戰")+` 第 ${S.raid.i+1}/${S.raid.list.length} 場`:"遭遇"}：${esc(E.n)}（${E.lv} 級${E.king?"・BP 99":""}）</b>　你是 ${S.lv} 級。<br><span class="note">${ee}${rr}${rinfo}也可以直接在上面打字說你要怎麼做：技能、武器、材料、地形想串幾個就串幾個，大賢者會拆成步驟，新用法每一步抵 1 項代價。戰鬥中也能喝藥（敵人會打你一下）。</span>
     ${R?"":(()=>{const L=readyMoves().slice(0,4);return L.length?`<div class="row2">${L.map((x,i)=>`<button class="pri" data-mv="${i}">使出【${esc(x.m.n)}】${x.a.cut?`（抵 ${x.a.cut}）`:""}</button><button data-mve="${i}" title="放進輸入框改一改">✎</button>`).join("")}</div>`:""})()}
     <div class="row2"><button id="ef">${R?"迎擊":"戰鬥"}</button><button id="ec">組合</button>${boss?"":`<button id="er">${R?"放棄據點逃走":"撤退"}</button>`}</div></div>`;
-    $("ef").onclick=()=>openDraft({act:"fight"});$("ec").onclick=()=>openDraft({act:"combo",obj:{t:"enemy",n:S.enc.n}});if($("er"))$("er").onclick=()=>openDraft({act:"retreat"});
+    $("ef").onclick=()=>openDraft({act:"fight"});$("ec").onclick=()=>R?openDraft({act:"combo",obj:{t:"enemy",n:S.enc.n}}):(cb=null,sheetCombo());if($("er"))$("er").onclick=()=>openDraft({act:"retreat"});
     if(!R){const L=readyMoves().slice(0,4);P.querySelectorAll("[data-mv]").forEach(b=>b.onclick=()=>useMoveDraft(L[+b.dataset.mv].m));
       P.querySelectorAll("[data-mve]").forEach(b=>b.onclick=()=>{$("sayt").value=`使出【${L[+b.dataset.mve].m.n}】，再`;$("sayt").focus()})}
     return}
@@ -193,6 +197,9 @@ async function sendSay(){
     }
     const it=await aiParse(t);
     busy=false;
+    if(it.act==="combo"&&!S.enc){busy=true;renderAll();const r=await aiSteps(t);busy=false;
+      if(!r.steps.length){toast="大賢者：這句話裡沒看到要用哪個技能、武器、材料或地形。";refresh();return}
+      const x=practice(r.steps);if(x.err)toast=x.err;refresh();return}
     if(S.enc&&!["fight","retreat","combo","potion"].includes(it.act)){it.act=it.act==="talk"?"talk":"fight"}
     if(it.act==="sleep"){sleep();refresh();narrate(t);return}
     if(it.act==="potion"){const i=S.items.findIndex(x=>x.k==="potion"&&(!it.potion||x.n===it.potion));const r=usePotion(i<0?null:i);if(r.err)toast=r.err;refresh();narrate(t);return}
@@ -212,7 +219,7 @@ async function narrate(said){
 function menuClick(k){
   toast="";
   if(["gather","explore","fight","retreat","shelter"].includes(k))return openDraft({act:k});
-  if(k==="combo")return openDraft({act:"combo",obj:{t:"place",n:S.at}});
+  if(k==="combo"){cb=null;return sheetCombo()}
   if(k==="craft")return openDraft({act:"craft"});
   if(k==="move")return openDraft({act:"move"});
   if(k==="hunt"||k==="rest"){exec(planOf({act:k}),{});refresh();return}
@@ -240,6 +247,50 @@ function sheetSkills(){
   <h3>倉庫 ${S.store.length}/${STORE_MAX[S.lv]}</h3><table>${S.store.map((s,i)=>row(s,i,"store")).join("")||"<tr><td>（空）</td></tr>"}</table>`);
   $("sbody").querySelectorAll("[data-sw]").forEach(b=>b.onclick=()=>{const [w,i]=b.dataset.sw.split("|");const r=swapSkill(w,+i);if(r&&r.err)toast=r.err;save();sheetSkills()});
   $("fz").onclick=()=>{const ids=[...document.querySelectorAll(".fk:checked")].map(x=>+x.value);const r=fuse(ids);if(r.err){toast=r.err;closeSheet()}else{save();sheetSkills()}};
+}
+/* v5.4：組合（不用 AI 也能自己拼步驟） */
+let cb=null;
+const selX=(id,opts,val)=>`<select id="${id}">${opts.map(([v,t])=>`<option value="${esc(v)}" ${v===val?"selected":""}>${esc(t)}</option>`).join("")}</select>`;
+function cbDefault(prev){const src=artSources();
+  if(prev&&prev.prim==="附加"&&prev.to)return {src:prev.to,prim:"傷害",kind:"",tags:[],to:""};
+  const used=(cb||[]).map(r=>r.src),sk=src.find(x=>x.k==="skill"&&x.left>0&&!used.includes(x.n))||src.find(x=>x.k==="skill")||src[0];
+  return {src:sk.n,prim:"附加",kind:"",tags:[],to:""}}
+function cbAllowed(i){const x=artSources().find(y=>y.n===cb[i].src);let t=x?x.tags.slice():[];
+  cb.slice(0,i).forEach(r=>{if(r.prim==="附加"&&r.to===cb[i].src)t=t.concat(r.tags)});return uniq(t)}
+function cbFix(i){const r=cb[i],src=artSources(),al=cbAllowed(i),need=["附加","增幅"].includes(r.prim)?al:needOf(r.prim,r.kind);
+  r.tags=r.tags.filter(t=>al.includes(t));if(!r.tags.length){const t=al.find(y=>need.includes(y))||al[0];r.tags=t?[t]:[]}
+  if(r.prim==="附加"&&(!r.to||r.to===r.src||!src.some(x=>x.n===r.to))){const t=src.find(x=>x.n!==r.src&&["weapon","mat","self"].includes(x.k))||src.find(x=>x.n!==r.src);r.to=t?t.n:""}
+  if(r.prim==="增幅"&&!(parseInt(r.to,10)>=1&&parseInt(r.to,10)<=i))r.to=i?String(i):"";
+  if(!["附加","增幅"].includes(r.prim))r.to="";}
+function sheetCombo(){
+  if(!cb||!cb.length){const d=cbDefault();cb=[d];cbFix(0);cb.push(cbDefault(d))}
+  const src=artSources();cb.forEach(r=>{if(!src.some(x=>x.n===r.src))r.src=src[0].n});cb.forEach((_,i)=>cbFix(i));
+  const inF=!!(S.enc&&!S.enc.raid),a=artCheck(cb,inF?{}:{practice:true});
+  const doOpts=ART_DO.map(p=>[p,p]).concat(Object.keys(ART_CTRL).map(k=>["控制|"+k,"控制："+k]),[["附加","附加（把標籤加到別的東西上）"],["增幅","增幅（讓前面某一步更強）"]]);
+  const rows=cb.map((r,i)=>{const al=cbAllowed(i),res=a.res[i]||{};
+    return `<div class="${res.ok?(res.novel?"art-new":"art-ok"):"art-no"}" style="margin:4px 0;padding:4px 6px"><b>${i+1}.</b> 用 ${selX("cs"+i,src.map(x=>[x.n,`${x.label||x.n}〔${x.tags.join("")}〕${x.k==="skill"?`剩${x.left}`:""}${x.k==="mat"?`×${x.left}`:""}`]),r.src)}
+      做 ${selX("cp"+i,doOpts,r.prim==="控制"?"控制|"+r.kind:r.prim)}
+      標籤 ${selX("ct"+i,al.map(t=>[t,t]),r.tags[0]||"")}
+      ${r.prim==="附加"?"加到 "+selX("co"+i,src.filter(x=>x.n!==r.src).map(x=>[x.n,x.label||x.n]),r.to):""}${r.prim==="增幅"&&i?"增幅第 "+selX("co"+i,cb.slice(0,i).map((_,j)=>[String(j+1),String(j+1)]),r.to)+" 步":""}
+      <br><span class="note">${res.ok?(res.novel?"✔ 新用法（抵 1 項）":"✔ 照本來的用法（不算新）"):"✘ "+esc(res.why||"")}</span></div>`}).join("");
+  const allOk=a.res.length&&a.res.every(r=>r.ok)&&!a.idle.length&&hasAct(cb);
+  sheet(`<h3>組合</h3><div class="note">一步一行：用什麼、做什麼、帶哪個標籤。標籤對得上、又不是那樣東西本來的用法，就是新用法。<b>每一步都成立、至少一步是新用法，就學會一招</b>（同一個技能的招攢滿 3 個，就能進化或長出新技能）。有 AI 時也可以直接在輸入框打字描述。${inF?"":"戰鬥外試招：花 1 小時，用到的技能各扣一次，不扣 MP，材料不會用掉。"}</div>${rows}
+   ${a.idle.length?`<div class="note">✘ ${esc(a.idle.join("、"))}</div>`:""}
+   <p><button id="cba">＋加一步</button> <button id="cbd" ${cb.length<2?"disabled":""}>－刪最後一步</button> <button id="cbr">重來</button></p>
+   <p><button class="pri" id="cbgo" ${inF||allOk?"":"disabled"}>${inF?"用這組出手（開判定）":allOk&&a.novel?"試這一招（1 小時）":allOk?"都是本來的用法，不算新招":!hasAct(cb)?"只有附加，再加一步拿它做事":"有步驟不成立"}</button>${!inF&&!allOk&&a.res.some(r=>r.ok&&r.novel)?` <button id="cbk">只試成立的部分</button>`:""}</p>`);
+  cb.forEach((r,i)=>{
+    $("cs"+i).onchange=e=>{r.src=e.target.value;r.tags=[];sheetCombo()};
+    $("cp"+i).onchange=e=>{const v=e.target.value;if(v.startsWith("控制|")){r.prim="控制";r.kind=v.slice(3)}else{r.prim=v;r.kind=""}r.tags=[];sheetCombo()};
+    $("ct"+i).onchange=e=>{r.tags=[e.target.value];sheetCombo()};
+    if($("co"+i))$("co"+i).onchange=e=>{r.to=e.target.value;sheetCombo()};
+  });
+  $("cba").onclick=()=>{cb.push(cbDefault(cb[cb.length-1]));sheetCombo()};
+  $("cbd").onclick=()=>{cb.pop();sheetCombo()};
+  $("cbr").onclick=()=>{cb=null;sheetCombo()};
+  const go=steps=>{if(inF){closeSheet();cb=null;openDraft({act:"fight",steps,say:"組合"},"組合");return}
+    const r=practice(steps);if(r.err)toast=r.err;else cb=null;closeSheet()};
+  $("cbgo").onclick=()=>go(cb.map(cleanStep));
+  if($("cbk"))$("cbk").onclick=()=>go(keepOk(cb,a.res));
 }
 /* v5.3：招式 */
 function useMoveDraft(m,said){openDraft({act:"fight",steps:m.steps.map(cleanStep),say:`使出【${m.n}】`,move:m.n},said||`使出【${m.n}】`)}
