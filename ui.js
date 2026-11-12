@@ -25,9 +25,11 @@ function renderStatus(){
   ${S.raid?`<div class="note bad-t">${S.raid.kind==="boss"?"魔王戰":"升級戰"}：第 ${S.raid.i+1}/${S.raid.list.length} 場，已輸 ${S.raid.lost}/${S.raid.max}（再輸 ${S.raid.max-S.raid.lost+1} 場${S.raid.kind==="boss"?"就完了":"據點被攻破"}）${S.raid.shesh?"，這場已捨身過":""}</div>`:""}
   ${S.ch===1?`<div class="note"><b>目標：建立據點</b>——先有避難所（蓋草棚，或占一個岩穴）。食物、火、水不擋關：餓了回不滿血、沒水三天會死、沒火沒遮蔽夜裡會冷。</div><div class="needs">${ck}</div>`:""}
   ${tags.length?`<div class="note bad-t">${tags.join("・")}</div>`:""}
-  <div class="note">存在值 ${S.exist}/${EXIST_MAX(S.lv)}　碎片 ${S.frags.length}　技能 ${S.skills.length}/${SKILL_SLOTS}（倉庫 ${S.store.length}/${STORE_MAX[S.lv]}）　金幣 ${S.gold}　背包 ${S.items.length}/${bagMax()}</div>
+  <div class="note">存在值 ${S.exist}/${EXIST_MAX(S.lv)}　碎片 ${S.frags.length}　技能 ${S.skills.length}/${SKILL_SLOTS}（倉庫 ${S.store.length}/${STORE_MAX[S.lv]}）　金幣 ${S.gold}　<a href="#" id="stbag">背包 ${S.items.length}/${bagMax()}・食物 ${foodCount()}</a></div>
   <div class="note">裝備：${SLOTS.filter(k=>S.eq[k]).map(k=>`${k} ${esc(S.eq[k].n)}${S.eq[k].mg?"✦":""}`).join("・")||"（沒有）"}</div>`;
+  bindStatus();
 }
+function bindStatus(){const a=$("stbag");if(a)a.onclick=e=>{e.preventDefault();sheetBag()}}
 function renderLog(){
   $("logbox").innerHTML=S.log.slice().reverse().map(e=>`<div class="l ${e.type}"><small>第${e.day}天 ${String(e.hour).padStart(2,"0")}:00</small>${esc(e.t)}</div>`).join("");
 }
@@ -43,7 +45,7 @@ function renderMenu(){
   if(S.over){m.innerHTML=`<button class="pri wide" id="again">結局：${esc(S.over.end)}（第 ${S.over.day} 天）。再玩一次</button>`;$("again").onclick=()=>{newGame();draft=null;refresh()};return}
   const lock=!!(S.pending||S.enc||draft||busy||S.pick);
   const ex=canExchange();
-  const B=[["gather","採集"],["explore","探索"],["hunt","狩獵"],["train","鍛鍊"],["exp",`實驗 ${Math.max(0,2-(S.expToday||0))}/2`],["craft","製作"],["move","移動"],["rest","休息"],["sleep","睡覺"],
+  const B=[["gather","採集"],["explore","探索"],["hunt","狩獵"],["train","鍛鍊"],["exp",`實驗 ${Math.max(0,2-(S.expToday||0))}/2`],["craft","製作"],["move","移動"],["rest","休息"],["sleep","睡覺"],...(foodCount()?[["eat",`吃東西 ${foodCount()}`]]:[]),
     ["skills","技能"],["frags",`碎片 ${S.frags.length}${ex.cats.length||ex.any?"！":""}`],["bag","背包・裝備"],["recipes","配方"]];
   const sp=specialHere();if(sp)B.push(["special",sp.label]);
   if(villageAt())B.push(["village",`${villageAt().n}`]);
@@ -214,6 +216,7 @@ function menuClick(k){
   if(k==="craft")return openDraft({act:"craft"});
   if(k==="move")return openDraft({act:"move"});
   if(k==="hunt"||k==="rest"){exec(planOf({act:k}),{});refresh();return}
+  if(k==="eat")return sheetEat();
   if(k==="train")return sheetTrain();
   if(k==="exp"){const r=experiment();if(r.err)toast=r.err;refresh();return}
   if(k==="sleep"){sleep();refresh();return}
@@ -270,6 +273,20 @@ function sheetFrags(){
     $("xch").innerHTML=`<h3>三選一</h3>`+ch.map((t,i)=>`<p><button data-c="${i}"><b>${esc(t.n)}</b>　${esc((t.c||[]).join("・"))}｜${esc((t.e||[]).join("・"))}<br><span class="note">${esc(t.d||"")}</span></button></p>`).join("")+`<div class="note">這次沒有想要的，可以先不換，下次再抽。</div>`;
     $("xch").querySelectorAll("[data-c]").forEach(x=>x.onclick=()=>{exchange(cat,ch[+x.dataset.c]);save();sheetFrags()})});
 }
+/* v5.7：吃東西（選單「吃東西」、背包都能點） */
+function foodHtml(off){
+  const food=FOODS.filter(m=>S.mats[m]);
+  return `<h3>食物</h3><div class="note">點了就吃，不花時間：熟肉回 30% HP，野果、生肉回 10%（沒火吃生肉可能生病）。今天吃過，晚上就不會飢餓。${S.needs.火?"有火：生肉可以烤成熟肉（1 小時）。":"還沒有火：做出火種之後才能烤肉。"}${S.ateToday?"<br>今天已經吃過了。":""}</div>`+
+    (food.length?`<table>`+food.map(m=>`<tr><td>${m}×${S.mats[m]}</td><td><button class="pri" data-eat="${m}" ${off?"disabled":""}>吃</button>${m==="生肉"&&S.needs.火?` <button data-cook="1" ${off?"disabled":""}>烤（1 小時）</button>`:""}</td></tr>`).join("")+`</table>`:`<p class="note">（沒有食物：林邊空地、草原採得到野果，溪邊採得到生肉，打倒魔物也會掉肉。）</p>`);
+}
+function bindFood(R){
+  $("sbody").querySelectorAll("[data-eat]").forEach(b=>b.onclick=()=>{const r=eatFood(b.dataset.eat);if(r.err)toast=r.err;R()});
+  $("sbody").querySelectorAll("[data-cook]").forEach(b=>b.onclick=()=>{const r=cookMeat();if(r.err)toast=r.err;R()});
+}
+function sheetEat(){
+  const off=!!(draft||busy||S.pending||S.enc||S.raid);
+  sheet(`<div class="note">HP ${S.hp}/${hpMax()}</div>`+foodHtml(off));bindFood(()=>{save();sheetEat()});
+}
 function sheetBag(){
   const lock=!!(draft||busy||S.pending),inFight=!!S.enc;
   let h=`<h3>裝備</h3><div class="note">武器 +1；遠程再 +1；近戰打遠程的對手要多付 1 項才能接近；雙手近戰大成功少付 1 項。盾、衣服、頭減傷。比對手等級低的裝備用完就壞（不能修）。✦＝魔法物品（一個效果、一天 3 次）。</div><table>`+
@@ -277,9 +294,7 @@ function sheetBag(){
   const fg=canForge();
   h+=`<h3>背包 ${S.items.length}/${bagMax()}</h3>`+(fg===true?`<div class="note">鍛冶台：白字裝備＋魔核 ×${forgeCost()}（或魔晶 ×1）→ 魔法裝備（${S.lv} 級，效果隨機），${racialOwned("矮人")?Math.ceil(FORGE_HOURS/2):FORGE_HOURS} 小時。聚落專屬的效果做不出來。</div>`:`<div class="note">鍛造魔法裝備：${fg}。</div>`)+
     `<table>`+(S.items.map((it,i)=>`<tr><td>${esc(itemDesc(it))}</td><td>${it.slot&&!inFight?`<button data-eq="${i}" ${lock?"disabled":""}>裝上</button>`:""}${it.k==="potion"?`<button data-dr="${i}" ${lock?"disabled":""}>喝</button>`:""}${fg===true&&it.slot&&!it.mg?` <button data-fg="${i}|0" ${lock||(S.mats.魔核||0)<forgeCost()?"disabled":""}>鍛造（魔核）</button>${S.mats.魔晶?` <button data-fg="${i}|1" ${lock?"disabled":""}>鍛造（魔晶）</button>`:""}`:""}</td></tr>`).join("")||"<tr><td>（空）</td></tr>")+`</table>`;
-  const food=FOODS.filter(m=>S.mats[m]);
-  h+=food.length?`<h3>食物</h3><div class="note">點了就吃，不花時間：熟肉回 30% HP，野果、生肉回 10%（沒火吃生肉可能生病）。今天吃過，晚上就不會飢餓。${S.needs.火?"有火：生肉可以烤成熟肉（1 小時）。":"還沒有火：做出火種之後才能烤肉。"}</div><table>`+
-    food.map(m=>`<tr><td>${m}×${S.mats[m]}</td><td><button data-eat="${m}" ${lock||inFight?"disabled":""}>吃</button>${m==="生肉"&&S.needs.火?` <button id="cook" ${lock||inFight?"disabled":""}>烤（1 小時）</button>`:""}</td></tr>`).join("")+`</table>`:"";
+  h+=foodHtml(lock||inFight);
   h+=`<p>材料：${MATS.filter(m=>S.mats[m]).map(m=>m+"×"+S.mats[m]).join("、")||"（空）"}</p><p>金幣：${S.gold}　語言：${S.langs.join("、")||"沒有"}</p>
   <p>看過的魔物技巧：${S.seen.map(x=>`${esc(x.n)}（${esc(x.from)}・${x.lv}${x.used?"・已偷學":""}）`).join("、")||"（無）"}</p>
   <p>已知地點：${S.places.map(n=>{const p=placeOf(n);return `${n}（${KIND_WORD[p.kind]?KIND_WORD[p.kind]+"・":""}${p.e.join("・")}${p.water?"・有水":""}${p.cave?"・岩穴":""}${p.kind==="hostile"&&S.cleared.includes(n)?"・已打下":""}）`}).join("、")}</p>
@@ -288,8 +303,7 @@ function sheetBag(){
   const R=()=>{save();sheetBag()};
   $("sbody").querySelectorAll("[data-uq]").forEach(b=>b.onclick=()=>{const r=unequip(b.dataset.uq);if(r.err)toast=r.err;R()});
   $("sbody").querySelectorAll("[data-eq]").forEach(b=>b.onclick=()=>{const r=equip(+b.dataset.eq);if(r.err)toast=r.err;R()});
-  $("sbody").querySelectorAll("[data-eat]").forEach(b=>b.onclick=()=>{const r=eatFood(b.dataset.eat);if(r.err)toast=r.err;R()});
-  if($("cook"))$("cook").onclick=()=>{const r=cookMeat();if(r.err)toast=r.err;R()};
+  bindFood(R);
   $("sbody").querySelectorAll("[data-dr]").forEach(b=>b.onclick=()=>{usePotion(+b.dataset.dr);closeSheet()});
   $("sbody").querySelectorAll("[data-fg]").forEach(b=>b.onclick=()=>{const [i,c]=b.dataset.fg.split("|");const r=forgeMagic(+i,c==="1");if(r.err)toast=r.err;R()});
 }
