@@ -43,7 +43,7 @@ function renderMenu(){
   if(S.over){m.innerHTML=`<button class="pri wide" id="again">結局：${esc(S.over.end)}（第 ${S.over.day} 天）。再玩一次</button>`;$("again").onclick=()=>{newGame();draft=null;refresh()};return}
   const lock=!!(S.pending||S.enc||draft||busy);
   const ex=canExchange();
-  const B=[["gather","採集"],["explore","探索"],["hunt","狩獵"],["combo","組合"],["craft","製作"],["move","移動"],["rest","休息"],["sleep","睡覺"],
+  const B=[["gather","採集"],["explore","探索"],["hunt","狩獵"],["combo","組合"],["train","鍛鍊"],["exp","實驗"],["craft","製作"],["move","移動"],["rest","休息"],["sleep","睡覺"],
     ["skills","技能"],["frags",`碎片 ${S.frags.length}${ex.cats.length||ex.any?"！":""}`],["bag","背包・裝備"],["recipes","配方"]];
   const sp=specialHere();if(sp)B.push(["special",sp.label]);
   if(villageAt())B.push(["village",`${villageAt().n}`]);
@@ -170,6 +170,7 @@ function itemPicker(q){
 async function sendSay(){
   const t=($("sayt").value||"").trim();if(!t)return;
   if(S.pending||draft){toast="先處理上面的事。";renderPanel();return}
+  {const r=localCalm(t);if(r){if(r.err)toast=r.err;refresh();return}}
   if(!AI.on()){toast="還沒設定 AI：按右上角 ⚙ 填 Gemini 或 OpenRouter 的金鑰。現在先用下面的按鈕。";renderPanel();return}
   busy=true;toast="";renderAll();
   try{
@@ -205,6 +206,8 @@ function menuClick(k){
   if(k==="craft")return openDraft({act:"craft"});
   if(k==="move")return openDraft({act:"move"});
   if(k==="hunt"||k==="rest"){exec(planOf({act:k}),{});refresh();return}
+  if(k==="train")return sheetTrain();
+  if(k==="exp")return sheetExp();
   if(k==="sleep"){sleep();refresh();return}
   if(k==="ch2"){S.pending={type:"ch2"};refresh();return}
   if(k==="build")return sheetBuild();
@@ -226,6 +229,29 @@ function sheetSkills(){
   <h3>倉庫 ${S.store.length}/${STORE_MAX[S.lv]}</h3><table>${S.store.map((s,i)=>row(s,i,"store")).join("")||"<tr><td>（空）</td></tr>"}</table>`);
   $("sbody").querySelectorAll("[data-sw]").forEach(b=>b.onclick=()=>{const [w,i]=b.dataset.sw.split("|");const r=swapSkill(w,+i);if(r&&r.err)toast=r.err;save();sheetSkills()});
   $("fz").onclick=()=>{const ids=[...document.querySelectorAll(".fk:checked")].map(x=>+x.value);const r=fuse(ids);if(r.err){toast=r.err;closeSheet()}else{save();sheetSkills()}};
+}
+/* v5.2：專心鍛鍊、專心實驗 */
+function sheetTrain(){
+  sheet(`<h3>專心鍛鍊</h3><div class="note">一小時練一次：扣今天的一次次數，熟練 +2（每 10 次進化一階）。不扣 MP。練到次數用完為止。也可以直接打字：「專心鍛鍊 發火」「鍛鍊 發火 2 次」。</div><table>`+
+    S.skills.map((s,i)=>`<tr><td><b>${esc(s.n)}</b> ${s.lv}<br><span class="note">熟練 ${s.used}（下次進化在 ${Math.ceil((s.used+1)/10)*10}）｜今天剩 ${usesLeft(s)} 次</span></td><td><button data-tr="${i}" ${usesLeft(s)<1?"disabled":""}>練 ${usesLeft(s)} 小時</button></td></tr>`).join("")+`</table>`);
+  $("sbody").querySelectorAll("[data-tr]").forEach(b=>b.onclick=()=>{const r=train(S.skills[+b.dataset.tr].n);if(r.err)toast=r.err;closeSheet()});
+}
+function sheetExp(){
+  const n=Math.min(Math.floor(S.mp/2),Math.max(0,23-S.hour));
+  sheet(`<h3>專心實驗</h3><div class="note">一小時 MP −2：自己拿技能表的技能、這裡的地形、材料、看過的魔物技巧亂配手法。搭配對了，有一半機率悟出新技能；沒悟出來就留一片碎片。參與的技能熟練 +1。做到 MP 不夠為止（現在 MP ${S.mp}，可以做 ${n} 次）。<br>不勾＝全部技能表一起試；勾了＝只用勾的。也可以直接打字：「專心實驗」「實驗 發火 光彈」。</div>
+  <div class="chips">${S.skills.map(s=>`<label class="chip"><input type="checkbox" class="xk" value="${esc(s.n)}">${esc(s.n)}<small>${s.lv}・${s.e.join("")}</small></label>`).join("")}</div>
+  <p><button class="pri" id="xgo" ${n<1?"disabled":""}>開始實驗（${n} 小時）</button></p>`);
+  $("xgo").onclick=()=>{const only=[...document.querySelectorAll(".xk:checked")].map(x=>x.value);const r=experiment(only);if(r.err)toast=r.err;closeSheet()};
+}
+/* 打字的鍛鍊、實驗：程式自己認，不叫 AI */
+function localCalm(t){
+  const m=t.match(/^\s*(?:專心|专心)?(鍛鍊|锻炼|鍛煉|練習|练习|實驗|实验)(.*)$/);if(!m)return null;
+  const exp=/實驗|实验/.test(m[1]),rest=m[2]||"";
+  const nm=rest.match(/(\d+)\s*(?:次|小時|小时|個小時|个小时)/),max=nm?+nm[1]:0;
+  const names=S.skills.map(s=>s.n).filter(n=>rest.includes(n));
+  if(exp)return experiment(names,max);
+  if(!names.length)return {err:"要鍛鍊哪個技能？例如「專心鍛鍊 發火」"};
+  return train(names[0],max);
 }
 function sheetFrags(){
   const c=fragCounts(),ex=canExchange();
