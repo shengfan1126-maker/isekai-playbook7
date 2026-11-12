@@ -226,7 +226,7 @@ function exec(q,p){
   if(q.useSkill)useSkill(q.useSkill,out);
   if(q.art){q.art.skills.forEach(s=>useSkill(s,out));q.art.mats.forEach(m=>{S.mats[m]=Math.max(0,(S.mats[m]||0)-1);out.paid.push(`${m} −1（拿來組合）`)});
     out.lines.push("組合："+q.art.res.map(r=>`${r.say||r.head}${r.ok?(r.novel?"（新用法）":""):`（沒用：${r.why}）`}`).join("；")+"。");
-    if(q.art.idle.length)out.lines.push(q.art.idle.join("、")+"，沒能發動。");}
+    if(q.art.idle.length)out.lines.push(q.art.idle.join("、")+"，沒能發動。");artAfter(q,out);}
   if(q.act==="combo")q.sks.forEach(s=>useSkill(s,out));
   count(S.stats.actions,q.act);
   const P=placeOf();
@@ -400,53 +400,6 @@ function train(name,max){
   lines.forEach(m=>log(m,"good"));
   advance(h);return {ok:true,h};
 }
-/* 專心實驗：一小時 MP −2，程式自己拿技能表的技能、所在地、材料、看過的技巧亂配手法；
-   這組搭配真的能悟出東西時，有一半機率想到（沒想到就是碎片）。參與的技能熟練 +1。做到 MP 不夠為止。 */
-function expObjs(){
-  const L=[{t:"none",n:""}];const P=placeOf();if(P&&P.e&&P.e.length)L.push({t:"place",n:S.at});
-  MATS.filter(m=>S.mats[m]&&(ITEM_E[m]||[]).length).forEach(m=>L.push({t:"item",n:m}));
-  S.seen.filter(x=>!x.used).forEach(x=>L.push({t:"seen",n:x.n}));return L;
-}
-function expSubsets(pool){const out=[];const n=pool.length;
-  for(let i=0;i<n;i++){out.push([pool[i]]);for(let j=i+1;j<n;j++){out.push([pool[i],pool[j]]);for(let k=j+1;k<n;k++)out.push([pool[i],pool[j],pool[k]])}}
-  return out}
-function expHits(pool){
-  const objs=expObjs(),seen={},hits=[];
-  expSubsets(pool).forEach(sub=>objs.forEach(o=>MOVES.forEach(m=>{const r=comboResult(sub,o,m);
-    if(r.correct&&!seen[r.correct.n]){seen[r.correct.n]=1;hits.push({sub,o,m,r})}})));
-  return hits;
-}
-function experiment(only,max){
-  const e=calmErr();if(e)return {err:e};
-  const pool=S.skills.filter(s=>!only||!only.length||only.includes(s.n));
-  if(!pool.length)return {err:only&&only.length?`技能表裡沒有${only.join("、")}`:"技能表是空的"};
-  if(S.mp<2)return {err:"MP 不夠（實驗一次要 2）"};
-  const full=()=>S.skills.length>=SKILL_SLOTS&&S.store.length>=STORE_MAX[S.lv];
-  const sum=[],extra=[];let h=0,learned=[];
-  while(S.mp>=2&&S.hour+h+1<24&&(!max||h<max)){
-    h++;S.mp-=2;S.stats.combos.try++;
-    const hits=full()?[]:expHits(pool);let x=null;
-    if(hits.length&&rand()<.5)x=pick(hits);
-    else{const subs=expSubsets(pool),objs=expObjs();const sub=pick(subs),o=pick(objs),m=pick(MOVES);x={sub,o,m,r:comboResult(sub,o,m)};if(full())x.r.correct=null}
-    const label=`${x.sub.map(s=>s.n).join("＋")}${x.o.t!=="none"?"＋"+x.o.n:""}＋${x.m.n}`;
-    x.sub.forEach(s=>drill(s,1,extra));
-    const out=null;
-    if(x.r.correct){const t=x.r.correct,where=learnSkill(t,x.r.lv);
-      if(t.steal){const sn=S.seen.find(y=>y.n===t.steal);if(sn)sn.used=true}
-      S.stats.combos.learn++;learned.push(t.n);
-      sum.push(`${h}. ${label} → 靈光一閃！領悟了【${t.n}】（${x.r.lv}）${where==="倉庫"?"，放進倉庫":""}。${t.d} 存在值+${gainExist(1)}`);
-      applyEffect({e:t.e,f:t.f,n:t.n,g:t.g},out);
-    }else{sum.push(`${h}. ${label} → 沒抓到要領，${addFrag(x.sub,x.m,x.r.all,x.o.t==="seen"?"天生":null)}`);
-      applyEffect({e:x.r.all,f:x.m.f,n:"這一招"},out)}
-  }
-  count(S.stats.actions,"experiment");
-  log(`[專心實驗] 花了 ${h} 小時、MP −${h*2}${only&&only.length?`（只用${only.join("、")}）`:""}。${learned.length?`學會：${learned.map(n=>"【"+n+"】").join("")}。`:"這次沒有悟出新技能，碎片留著換。"}`,"act");
-  sum.forEach(m=>log(m));
-  learned.forEach(n=>log(`靈光一閃：學會【${n}】`,"good"));
-  uniq(extra).forEach(m=>log(m,"good"));
-  advance(h);return {ok:true,h,learned};
-}
-
 /* 碎片兌換：3 片同大類 → 同大類三選一；10 片任意 → 任意三選一 */
 function fragCounts(){const c={};S.frags.forEach(f=>f.cats.forEach(x=>count(c,x)));return c}
 function canExchange(){const c=fragCounts();return {cats:Object.keys(c).filter(k=>c[k]>=3),any:S.frags.length>=10}}

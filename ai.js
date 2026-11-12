@@ -377,7 +377,7 @@ const STEP_SYS=`你是文字冒險遊戲「孤獨異世界」裡的大賢者：�
   控制：${Object.entries(ART_CTRL).map(([k,v])=>k+"＝"+v.join("、")).join("；")}。
 - 觸發詞（意思相近都算）：組合、結合、融合、混合、注入、裹上、點燃、加速、實驗、試試＝附加或增幅；抓住、按住、綁、困住、拖住、絆倒、弄瞎、悶住、嚇退、毒倒＝控制。`;
 async function aiSteps(text){
-  const ctx=`【現況】\n${aiContext()}\n\n【可用的東西】（名字｜種類｜標籤｜本來用法）\n${artListText()}\n\n【眼前的敵人】${S.enc?`${S.enc.n}（${S.enc.lv} 級）${foeTags().length?"，標籤："+foeTags().join("、"):""}`:"無"}`;
+  const ctx=`【現況】\n${aiContext()}\n\n【可用的東西】（名字｜種類｜標籤｜本來用法）\n${artListText()}\n\n【眼前的敵人】${S.enc?`${S.enc.n}（${S.enc.lv} 級）${foeTags().length?"，標籤："+foeTags().join("、"):""}`:"無"}${moves().length?`\n\n【學會的招】（玩家叫出招名時，把那招的 steps 照抄，再接他另外說的步驟）\n${movesListText()}`:""}`;
   const msgs=[{role:"system",content:STEP_SYS},{role:"user",content:`${ctx}\n\n【玩家】${text}`}];
   const res=await callModel(msgs,1500,r=>{const o=parseObjs(r.txt).find(x=>x&&(x.act||x.steps));if(!o)throw new Error("沒有照格式回 JSON");return o});
   const j=res.val,arr=x=>Array.isArray(x)?x:[];
