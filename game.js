@@ -117,8 +117,9 @@ function tick(need,why,out){
   checkChapter();
 }
 function checkChapter(){
-  if(S.ch===1&&NEEDS.every(k=>S.needs[k])&&!S.pending&&!S.ch1Offered){
-    S.ch1Offered=true;S.stats.ch1Day=S.day;S.pending={type:"ch2"};gainExist(3);log("食物、火、水、避難所都打勾了。第一章完成。存在值 +3。","good");
+  /* v5.6：第一章只要有避難所（草棚或岩穴）就能建立據點；食物、火、水不擋關，只影響身體 */
+  if(S.ch===1&&S.needs.避難所&&!S.pending&&!S.ch1Offered){
+    S.ch1Offered=true;S.stats.ch1Day=S.day;S.pending={type:"ch2"};gainExist(3);log("你有了能落腳的地方。第一章完成。存在值 +3。","good");
   }
 }
 /* 一個成功的效果（本質＋形態）能滿足哪些需求 */
@@ -158,7 +159,7 @@ function planOf(it){
     if(!MOVES.some(m=>m.n===it.move))q.err=q.err||"要選一個手法";
   }
   if(act==="craft"){const r=RECIPES.find(x=>x.n===it.craft);q.recipe=r;
-    if(!r)q.err="沒有這個配方";else if(!["skill","shelter"].includes(r.k)&&bagFull()&&!(GEAR[r.n]&&!S.eq[GEAR[r.n].slot]))q.err=`背包滿了（${bagMax()} 件）`;else if(!Object.entries(r.need).every(([m,n])=>(S.mats[m]||0)>=n))q.err="材料不夠";
+    if(!r)q.err="沒有這個配方";else if(r.cook&&!S.needs.火)q.err="要先有火（先做出火種）";else if(!["skill","shelter","food"].includes(r.k)&&bagFull()&&!(GEAR[r.n]&&!S.eq[GEAR[r.n].slot]))q.err=`背包滿了（${bagMax()} 件）`;else if(!Object.entries(r.need).every(([m,n])=>(S.mats[m]||0)>=n))q.err="材料不夠";
     q.base=r&&r.hard?0:1;}
   if(act==="gather"||act==="explore")q.base=1;
   if(act==="gather"&&!(placeOf().res||[]).length)q.err="這裡沒什麼好採的";
@@ -306,6 +307,7 @@ function doCraft(q,out){
   out.lines.push(`做出了${r.n}。`);
   if(r.fire){S.fire=true;tick("火","你學會生火了",out);return}
   if(r.sh){tick("避難所",`在${S.at}搭起了草棚`,out);return}
+  if(r.cook){addMat("熟肉",1);out.gain.push("熟肉");return}
   gainItem(r.k==="gear"?mkGear(r.n,S.lv):mkItem(r.n,r.k,S.lv),out);
   if(r.water)tick("水","有水袋就能把水帶在身上",out);
   if(out.res==="big"){addMat("石片",1);out.gain.push("石片（省下的）")}
@@ -455,13 +457,31 @@ function swapSkill(from,i){
   advance(1);return {ok:true};
 }
 
+/* ───── v5.6：吃、烤（背包裡點了就做） ───── */
+const FOOD_HP={熟肉:.3,野果:.1,生肉:.1};
+function eatFood(m){
+  if(!FOOD_HP[m])return {err:"這個不能吃"};if(!(S.mats[m]>0))return {err:`沒有${m}`};
+  if(S.enc||S.raid)return {err:"戰鬥中不能吃東西"};
+  S.mats[m]--;S.ateToday=true;S.tags.飢餓=false;
+  const g=Math.max(1,Math.ceil(hpMax()*FOOD_HP[m])),h0=S.hp;S.hp=Math.min(hpMax(),S.hp+g);
+  let t=`吃了${m}，HP ${h0}→${S.hp}。`;
+  if(m==="生肉"&&!S.needs.火&&rand()<.5){S.tags.疾病=3;t+="肚子不對勁（疾病）。"}
+  log(t);tick("食物","找到吃的了");return {ok:true};
+}
+function cookMeat(){
+  if(!S.needs.火)return {err:"要先有火（先做出火種）"};if(!(S.mats.生肉>0))return {err:"沒有生肉"};
+  if(S.enc||S.raid)return {err:"戰鬥中不能烤肉"};if(S.hour+1>=24)return {err:"太晚了，先睡吧"};
+  S.mats.生肉--;addMat("熟肉",1);log("烤了一塊肉（生肉 → 熟肉），花了 1 小時。");advance(1);return {ok:true};
+}
+
 /* ───── 時間與夜晚 ───── */
 function advance(h){S.hour+=h;if(S.hour>=24&&!S.over&&!S.raid)night(false)}
 function night(voluntary){
   const lines=[];if(!voluntary&&mgCount("calm")){voluntary=true;lines.push("安眠：倒下就睡著了，睡得很好。")}
   /* 吃 */
   const f=["熟肉","野果","生肉"].find(m=>S.mats[m]>0);
-  if(mgCount("thrift")&&S.day%2===0){S.tags.飢餓=false;lines.push("節食：今天不用吃。")}
+  if(S.ateToday){S.tags.飢餓=false}
+  else if(mgCount("thrift")&&S.day%2===0){S.tags.飢餓=false;lines.push("節食：今天不用吃。")}
   else if(f){S.mats[f]--;S.tags.飢餓=false;
     if(f==="生肉"){if(S.needs.火)lines.push("烤了肉吃。");else if(rand()<.5){S.tags.疾病=3;lines.push("吃了生肉，肚子不對勁（疾病）。")}else lines.push("硬吞了生肉。")}
     else lines.push(`吃了${f}。`)}
@@ -483,7 +503,7 @@ function night(voluntary){
   if(!voluntary)lines.push("撐到天亮才倒下，睡得很差。");
   if(foodCount()>=5)tick("食物","存糧夠吃好幾天了");
   const fl=facDay();if(fl)lines.push(fl);
-  S.day++;S.hour=WAKE;S.drank=false;
+  S.day++;S.hour=WAKE;S.drank=false;S.ateToday=false;
   S.skills.concat(S.store).forEach(s=>s.today=0);S.expToday=0;S.itemUsed={};
   S.items.concat(SLOTS.map(k=>S.eq[k]).filter(Boolean)).forEach(it=>{if(it.use)it.use=0;if(it.danced)it.danced=0});S.burst=0;
   log(lines.join(" "));
