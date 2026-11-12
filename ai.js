@@ -360,6 +360,36 @@ function normIntent(j){
   if(it.act==="combo"&&!it.skills.length)it.act="talk";
   return it;
 }
+/* v5.1：遭遇中，大賢者把玩家的話拆成步驟（標籤式組合）。程式再看標籤判定，AI 不判成敗 */
+const STEP_SYS=`你是文字冒險遊戲「孤獨異世界」裡的大賢者：把玩家這一句話「解析、拆解」成結構化的步驟，交給程式判定。你不判成敗、不給東西、不改數字、不寫故事。
+只輸出 JSON：
+{"act":"fight|retreat|potion|talk","steps":[{"src":"來源名字","prim":"原語","kind":"控制的種類","tags":["這一步用到的標籤"],"to":"對象","say":"一句繁體中文，照玩家的描述寫這一步"}],"say":"用一句繁體中文重述玩家要做的事","costs":["玩家說願意付的代價：hp|mp|time|item"],"potion":"藥名（喝藥時）"}
+規則：
+- act：要打、要用技能或東西對付眼前的敵人＝fight；逃走＝retreat；喝藥＝potion；只是說話或想事情＝talk。
+- src 只能是【可用的東西】清單裡的名字（徒手、撿石頭打寫「自己」；利用地形寫「周圍」）。玩家說了幾樣就拆幾步，同一個來源可以出現在好幾步，不要替玩家加他沒提到的東西。別名要對回原名。
+- prim 只能是：傷害、控制、防護、位移、破綻、隱匿、環境、附加、增幅。
+  · 控制時 kind 填：${Object.keys(ART_CTRL).join("、")} 之一。
+  · 附加：把這個來源的標籤加到另一個東西上（例：用火把刀刃燒紅 → prim 附加，tags ["火"]，to "刀的名字"）。之後那個東西就帶著這些標籤。
+  · 增幅：讓前面某一步更強（例：用風加速火焰），to 寫那一步的編號（從 1 開始）。
+  · 躲、藏、偷偷接近＝隱匿；看穿、找弱點＝破綻；擋、護住自己＝防護；把地面變成泥、點燃草叢＝環境。
+- tags 只能從這個來源自己的標籤裡挑（附加過的也可以），而且要挑這一步需要的：
+  傷害＝${ART_PRIM.傷害.join("、")}；防護＝${ART_PRIM.防護.join("、")}；位移＝${ART_PRIM.位移.join("、")}；破綻＝${ART_PRIM.破綻.join("、")}；隱匿＝${ART_PRIM.隱匿.join("、")}；環境＝${ART_PRIM.環境.join("、")}；
+  控制：${Object.entries(ART_CTRL).map(([k,v])=>k+"＝"+v.join("、")).join("；")}。
+- 觸發詞（意思相近都算）：組合、結合、融合、混合、注入、裹上、點燃、加速、實驗、試試＝附加或增幅；抓住、按住、綁、困住、拖住、絆倒、弄瞎、悶住、嚇退、毒倒＝控制。`;
+async function aiSteps(text){
+  const ctx=`【現況】\n${aiContext()}\n\n【可用的東西】（名字｜種類｜標籤｜本來用法）\n${artListText()}\n\n【眼前的敵人】${S.enc?`${S.enc.n}（${S.enc.lv} 級）${foeTags().length?"，標籤："+foeTags().join("、"):""}`:"無"}`;
+  const msgs=[{role:"system",content:STEP_SYS},{role:"user",content:`${ctx}\n\n【玩家】${text}`}];
+  const res=await callModel(msgs,1500,r=>{const o=parseObjs(r.txt).find(x=>x&&(x.act||x.steps));if(!o)throw new Error("沒有照格式回 JSON");return o});
+  const j=res.val,arr=x=>Array.isArray(x)?x:[];
+  const names=artSources().map(x=>x.n);
+  const steps=arr(j.steps).filter(x=>x&&typeof x==="object").slice(0,10).map(x=>({src:String(x.src||"").replace(/[×x*]\s*\d+$/,""),prim:String(x.prim||""),kind:String(x.kind||""),
+    tags:arr(x.tags).map(String).filter(t=>ART_TAGS.includes(t)),to:String(x.to||""),say:String(x.say||"").slice(0,60)}))
+    .map(x=>Object.assign(x,{src:names.find(n=>n===x.src)||names.find(n=>x.src&&(n.includes(x.src)||x.src.includes(n)))||x.src}))
+    .filter(x=>ART_PRIMS.includes(x.prim));
+  const acts=["fight","retreat","potion","talk"];
+  return {act:acts.includes(j.act)?j.act:(steps.length?"fight":"talk"),steps,say:String(j.say||""),
+    costs:arr(j.costs).filter(c=>["hp","mp","time","item"].includes(c)),potion:String(j.potion||"")};
+}
 const NARR_SYS=`你是「孤獨異世界」的旁白。主角是一個人被丟到異世界的轉生者，沒有同伴，四周都是荒野。
 用繁體中文寫 2～4 句，描述剛剛發生的事。只能描述【結果】裡寫到的東西：不要加任何新的物品、數字、人物、同伴、技能；不要替玩家決定下一步；不要寫選項。語氣冷靜、有生存感。`;
 async function aiNarrate(said,result){

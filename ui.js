@@ -90,7 +90,7 @@ function renderPanel(){
       `牠會「${esc(E.t.n)}」。打、用組合、或撤退（撤退也要付代價，例如丟下東西）。`;
     const ee=(E.e||[]).length?`屬性：${E.e.join("・")}${(E.e||[]).map(x=>Object.keys(COUNTER).filter(k=>COUNTER[k].includes(x))).flat().length?`（怕：${uniq(E.e.flatMap(x=>Object.keys(COUNTER).filter(k=>COUNTER[k].includes(x)))).join("、")}）`:""}。`:"";
     const rr=E.amb?"<b>你被突襲了</b>：牠已經在身邊，拿遠程武器要多付 1 項拉開距離。":E.brk?"<b>這一面被突破</b>：敵人衝到身邊，拿遠程武器要多付 1 項拉開距離。":E.r?"牠在遠處（遠程）：近戰要多付 1 項才能接近。":"";
-    P.innerHTML=h+`<div class="box enc"><b>${R?(boss?"魔王戰":"升級戰")+` 第 ${S.raid.i+1}/${S.raid.list.length} 場`:"遭遇"}：${esc(E.n)}（${E.lv} 級${E.king?"・BP 99":""}）</b>　你是 ${S.lv} 級。<br><span class="note">${ee}${rr}${rinfo}也可以直接在上面打字說你要怎麼做。戰鬥中也能喝藥（敵人會打你一下）。</span>
+    P.innerHTML=h+`<div class="box enc"><b>${R?(boss?"魔王戰":"升級戰")+` 第 ${S.raid.i+1}/${S.raid.list.length} 場`:"遭遇"}：${esc(E.n)}（${E.lv} 級${E.king?"・BP 99":""}）</b>　你是 ${S.lv} 級。<br><span class="note">${ee}${rr}${rinfo}也可以直接在上面打字說你要怎麼做：技能、武器、材料、地形想串幾個就串幾個，大賢者會拆成步驟，新用法每一步抵 1 項代價。戰鬥中也能喝藥（敵人會打你一下）。</span>
     <div class="row2"><button id="ef">${R?"迎擊":"戰鬥"}</button><button id="ec">組合</button>${boss?"":`<button id="er">${R?"放棄據點逃走":"撤退"}</button>`}</div></div>`;
     $("ef").onclick=()=>openDraft({act:"fight"});$("ec").onclick=()=>openDraft({act:"combo",obj:{t:"enemy",n:S.enc.n}});if($("er"))$("er").onclick=()=>openDraft({act:"retreat"});return}
   if(!draft&&canReroll()){
@@ -109,6 +109,10 @@ function renderPanel(){
       .concat(S.items.concat(SLOTS.map(k=>S.eq[k]).filter(Boolean)).map(i=>["item|"+i.n,`物品：${i.n}`])).concat(MATS.filter(m=>S.mats[m]).map(m=>["item|"+m,`材料：${m}`]));
     f+=`<label class="ck">對象 ${sel("dob",objs,it.obj.t+"|"+(it.obj.n||""))}</label>`;
     f+=`<label class="ck">手法 ${sel("dmv",[["","（選一個）"]].concat(MOVES.map(m=>[m.n,`${m.n}（${m.f}）`])),it.move)}</label>`;
+  }else if(it.act==="fight"&&q.art){
+    f+=`<div class="lbl">大賢者拆出的步驟（標籤成立、又是新用法的，每一步抵 1 項）</div><div class="arts">`+q.art.res.map(r=>`<div class="${r.ok?(r.novel?"art-new":"art-ok"):"art-no"}">${esc(r.head)}${r.tags.length?`（${esc(r.tags.join("、"))}）`:""}　${r.ok?(r.novel?"新用法":"照本來的用法"):"不成立："+esc(r.why)}${r.say?`<br><span class="note">${esc(r.say)}</span>`:""}</div>`).join("")+`</div>`+
+      (q.art.idle.length?`<div class="note">${esc(q.art.idle.join("、"))}，沒能發動。</div>`:"")+
+      (q.art.foe.length?`<div class="note">${esc(S.enc.n)}的標籤：${q.art.foe.map(t=>`${t}（${ART_FOE[t]}）`).map(esc).join("；")}</div>`:"");
   }else if(["gather","explore","fight","craft","retreat","shelter","raid","boss"].includes(it.act)){
     f+=`<label class="ck">技能 ${sel("dsk1",[["","不用"]].concat(S.skills.concat(itemSkills()).map(s=>[s.n,`${s.fromItem?"✦":""}${s.n}（${s.lv}・${s.c.join("")}・剩${usesLeft(s)}${s.fromItem?"・不扣MP":""}）`])),it.skills[0]||"")}</label>`;
   }
@@ -169,6 +173,13 @@ async function sendSay(){
   if(!AI.on()){toast="還沒設定 AI：按右上角 ⚙ 填 Gemini 或 OpenRouter 的金鑰。現在先用下面的按鈕。";renderPanel();return}
   busy=true;toast="";renderAll();
   try{
+    if(S.enc&&!S.enc.raid){
+      const r=await aiSteps(t);busy=false;
+      if(r.act==="retreat"){openDraft({act:"retreat",costs:r.costs,say:r.say},t);return}
+      if(r.act==="potion"){const i=S.items.findIndex(x=>x.k==="potion"&&(!r.potion||x.n===r.potion));const u=usePotion(i<0?null:i);if(u.err)toast=u.err;refresh();narrate(t);return}
+      if(r.act==="talk"||!r.steps.length){log(`（你）${t}`);toast=r.steps.length?"":"大賢者：這句話裡沒看到要用哪個技能、武器、材料或地形。可以直接寫你怎麼打，例如「用溫度把刀燒熱，再砍牠」。";refresh();narrate(t);return}
+      openDraft({act:"fight",steps:r.steps,say:r.say,costs:r.costs},t);return;
+    }
     const it=await aiParse(t);
     busy=false;
     if(S.enc&&!["fight","retreat","combo","potion"].includes(it.act)){it.act=it.act==="talk"?"talk":"fight"}

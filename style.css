@@ -99,3 +99,10 @@ label.chip small{color:var(--mute);font-weight:400;font-size:11px}
 /* v0.2.2 開局換技能 */
 .rr{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line,#ddd)}
 .rr button{flex:none}
+
+/* v5.1 組合步驟 */
+.arts{display:flex;flex-direction:column;gap:3px;margin:4px 0;font-size:14px}
+.arts>div{padding:3px 8px;border-radius:6px;background:rgba(0,0,0,.04)}
+.art-new{border-left:3px solid #7a3fa0}
+.art-ok{border-left:3px solid #999}
+.art-no{border-left:3px solid #b04a3c;opacity:.8}

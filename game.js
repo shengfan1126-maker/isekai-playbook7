@@ -145,6 +145,8 @@ function planOf(it){
   const act=it.act,q={act,it,notes:[],key:false,boss:false,eIdx:pg(),base:0,mand:{mp:0},err:null};
   const sks=(it.skills||[]).map(skillBy).filter(Boolean);
   q.sks=sks;
+  /* v5.1：大賢者拆出來的步驟（只用在一般遭遇；升級戰、魔王戰維持舊規則） */
+  if(act==="fight"&&Array.isArray(it.steps)&&it.steps.length&&S.enc&&!S.enc.raid)q.art=artCheck(it.steps);
   if(act==="combo"){
     if(!sks.length)q.err="組合至少要選 1 個技能";
     if(sks.length>3)q.err="一次最多 3 個技能";
@@ -164,7 +166,7 @@ function planOf(it){
   if(q.raid&&act==="retreat"&&S.raid&&S.raid.kind==="boss")q.err="魔王戰逃不掉";
   let net=q.base;if(q.base)q.notes.push(act==="craft"?"會做的東西 +1":"日常 +1");
   const diff=Math.max(0,q.eIdx-pg());if(diff){net-=diff;q.notes.push("階層差 −"+diff)}
-  if(!["combo","hunt","move","rest"].includes(act)&&sks[0]){const s=sks[0];
+  if(!["combo","hunt","move","rest"].includes(act)&&sks[0]&&!q.art){const s=sks[0];
     if(usesLeft(s)<1||(!s.fromItem&&S.mp<1))q.notes.push(`【${s.n}】今天用完或 MP 不足，無效`);
     else{q.useSkill=s;q.mand.mp=s.fromItem?0:1;
       if(gIdx(s.lv)>=Math.min(q.eIdx,pg()+1)){net+=1;q.notes.push(`【${s.n}】+1`)}else q.notes.push(`【${s.n}】階層不夠`);
@@ -173,7 +175,10 @@ function planOf(it){
     if(d){net-=d-b;q.notes.push(`多打一 −${d}${b?`（設施擋掉 ${b}）`:""}`)}
     if(S.raid&&S.raid.i<watchN()){net+=1;q.notes.push("哨塔先看到 +1")}}
   if(S.enc&&["fight","combo"].includes(act))q.foe=S.enc.king?7:gIdx(S.enc.lv);
-  net+=gearBonus(q,act,q.useSkill?[q.useSkill]:sks);
+  net+=gearBonus(q,act,q.art?q.art.skills:q.useSkill?[q.useSkill]:sks);
+  if(q.art){q.mand.mp=q.art.mp;
+    if(q.art.cut){net+=q.art.cut;q.notes.push(`新用法 ${q.art.novel} 步${q.art.novel>q.art.cut?`（放進 ${q.art.nSrc} 樣東西，最多抵 ${q.art.nSrc}）`:""} +${q.art.cut}`)}
+    else q.notes.push("組合裡沒有新用法（照本來的用法出手）");}
   const adv=Math.min(2,(it.adv||[]).length),dis=Math.min(2,(it.dis||[]).length);
   if(adv){net+=adv;q.notes.push(`優勢（${it.adv.slice(0,2).join("、")}）+${adv}`)}
   if(dis){net-=dis;q.notes.push(`劣勢（${it.dis.slice(0,2).join("、")}）−${dis}`)}
@@ -219,6 +224,9 @@ function exec(q,p){
   }
   if(q.mand.mp)S.mp-=q.mand.mp;
   if(q.useSkill)useSkill(q.useSkill,out);
+  if(q.art){q.art.skills.forEach(s=>useSkill(s,out));q.art.mats.forEach(m=>{S.mats[m]=Math.max(0,(S.mats[m]||0)-1);out.paid.push(`${m} −1（拿來組合）`)});
+    out.lines.push("組合："+q.art.res.map(r=>`${r.say||r.head}${r.ok?(r.novel?"（新用法）":""):`（沒用：${r.why}）`}`).join("；")+"。");
+    if(q.art.idle.length)out.lines.push(q.art.idle.join("、")+"，沒能發動。");}
   if(q.act==="combo")q.sks.forEach(s=>useSkill(s,out));
   count(S.stats.actions,q.act);
   const P=placeOf();
