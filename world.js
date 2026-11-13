@@ -229,6 +229,15 @@ function rollPlaceEnemy(){
   return {n:m.n,lv:m.lv,e:(m.e||[]).slice(),t:m.t,r:m.r||0,tag:m.tag||""};
 }
 
+/* v5.13：設施說明告訴玩家種族技能去哪學 */
+function raceWhere(race){
+  const R=RACES[race],V=PLACES.find(p=>p.kind==="village"&&p.race===race);if(!R||!V)return "";
+  if(racialOwned(race))return `你已經會【${R.sk.n}】。`;
+  if(!S.places.includes(V.n))return `【${R.sk.n}】在${V.n}學。還沒找到${V.n}，${(V.ring||0)>0&&pg()<2?"據點到 D 級以後探索才走得到":"多探索"}。`;
+  const ok=x=>x?"✔":"✘";
+  return `【${R.sk.n}】到${V.n}學：${ok(relOf(race)>=-1)}送禮（態度到警戒以上）→ ${ok(knowsLang(R.lang))}學${R.lang} → 學【${R.sk.n}】。`;
+}
+const facHint=n=>{const d=facDef(n);return d&&d.race?raceWhere(d.race):""};
 /* ───── 村落 ───── */
 const relOf=race=>S.rel[race]==null?-1:S.rel[race];
 const relMult=race=>relOf(race)>=0?1.5:2;

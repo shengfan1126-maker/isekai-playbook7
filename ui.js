@@ -91,11 +91,11 @@ function renderPanel(){
     $("pkre").onclick=()=>{const r=rerollPick();if(r.err)toast=r.err;refresh()};return}
   if(S.facPick&&!draft&&!S.enc){
     P.innerHTML=h+`<div class="box"><b>蓋一座設施（三選一）</b>　據點 ${S.nest} 級可以有 ${FAC_SLOTS(nestIdx())} 座，現在 ${S.fac.length} 座。<br><span class="note">蓋好後要放一個技能進去才會運作（主角一個人，沒有人手）。每座在運作的設施，升級戰時擋掉 1 條「多打一」的劣勢。</span>`+
-      S.facPick.map(n=>{const f=facDef(n);return `<p><button data-fp="${esc(n)}"><b>${esc(n)}</b>　對口：${esc(f.cat)}<br><span class="note">${esc(f.d)}</span></button></p>`}).join("")+`</div>`;
+      S.facPick.map(n=>{const f=facDef(n);return `<p><button data-fp="${esc(n)}"><b>${esc(n)}</b>　對口：${esc(f.cat)}<br><span class="note">${esc(f.d)}${facHint(n)?"<br>"+esc(facHint(n)):""}</span></button></p>`}).join("")+`</div>`;
     P.querySelectorAll("[data-fp]").forEach(b=>b.onclick=()=>{pickFac(b.dataset.fp);refresh()});return}
   if(S.enc&&!draft){const R=S.enc.raid,E=S.enc,boss=R&&S.raid&&S.raid.kind==="boss";
     const rinfo=R?`${esc(E.dir)}。${E.army?"大軍，沒有技巧可學。":`牠會「${esc(E.t.n)}」（升級戰頭目的獨特技巧，學不來）。`}多打一：劣勢 ${E.dis||0} 條，設施擋掉 ${Math.min(E.dis||0,facBlock())} 條。這是關鍵戰（淨優勢最多 0），不能付「多花時間」，「用掉東西」只能用背包裡的物品、一場一件。${boss?"魔王戰逃不掉。":"逃走＝放棄據點（設施全毀、F 級重來、物資剩一半）。"}`:
-      `牠會「${esc(E.t.n)}」。打、用組合、或撤退（撤退也要付代價，例如丟下東西）。`;
+      `牠會「${esc(E.t.n)}」。打、用組合、或撤退（撤退也要付代價，例如丟下東西）。${gIdx(E.lv)-pg()>=2?`<br><b>牠比你高 ${gIdx(E.lv)-pg()} 級，看起來打不贏。</b>${S.items.some(x=>x.k==="escape")?"撒逃跑粉就能脫身，不用付代價。":"沒有逃跑粉了（草 2、骨頭 1 可以做）。"}`:""}`;
     const ee=(E.e||[]).length?`屬性：${E.e.join("・")}${(E.e||[]).map(x=>Object.keys(COUNTER).filter(k=>COUNTER[k].includes(x))).flat().length?`（怕：${uniq(E.e.flatMap(x=>Object.keys(COUNTER).filter(k=>COUNTER[k].includes(x)))).join("、")}）`:""}。`:"";
     const rr=E.amb?"<b>你被突襲了</b>：牠已經在身邊，拿遠程武器要多付 1 項拉開距離。":E.brk?"<b>這一面被突破</b>：敵人衝到身邊，拿遠程武器要多付 1 項拉開距離。":E.r?"牠在遠處（遠程）：近戰要多付 1 項才能接近。":"";
     P.innerHTML=h+`<div class="box enc"><b>${R?(boss?"魔王戰":"升級戰")+` 第 ${S.raid.i+1}/${S.raid.list.length} 場`:"遭遇"}：${esc(E.n)}（${E.lv} 級${E.king?"・BP 99":""}）</b>　你是 ${S.lv} 級。<br><span class="note">${ee}${rr}${rinfo}也可以直接在上面打字說你要怎麼做：技能、武器、材料、地形想串幾個就串幾個，大賢者會拆成步驟，新用法每一步抵 1 項代價；組合成立還會靈光一閃（三選一）。戰鬥中也能喝藥（敵人會打你一下）。</span>
@@ -156,7 +156,7 @@ function renderPanel(){
   if($("dsh"))$("dsh").onchange=e=>{const v=e.target.value;d.shesh=v==="rand"?true:v||false;renderPanel()};
   if($("dno"))$("dno").onclick=()=>{draft=null;renderAll()};
   if(q.raid&&S.raid&&S.raid.shesh)d.shesh=false;
-  $("dok").onclick=()=>{const q2=planOf(it);if(q2.err)return;
+  $("dok").onclick=()=>{const q2=planOf(it);if(q2.err)return;narrFrom=S.logN||0;
     const out=exec(q2,Object.assign({},d.p,{shesh:d.shesh,dance:!!(d.dance&&q2.dance)}));const said=d.said;draft=null;refresh();narrate(said)};
 }
 function clampPick(){const q=planOf(draft.it);["hp","mp","time"].forEach(k=>draft.p[k]=Math.min(draft.p[k],q.caps[k]));draft.p.items=draft.p.items.slice(0,q.caps.item);draft.p.item=draft.p.items.length}
@@ -177,10 +177,11 @@ function itemPicker(q){
 
 /* ───── 自由敘事 ───── */
 async function sendSay(){
-  const t=($("sayt").value||"").trim();if(!t)return;
+  const t=($("sayt").value||"").trim();if(!t)return;narrFrom=S.logN||0;
   if(S.pending||draft){toast="先處理上面的事。";renderPanel();return}
   if(S.pick){if(/不是我要|重抽|換一個|换一个|換別的|换别的|重來|重来/.test(t)){const r=rerollPick();if(r.err)toast=r.err}else toast="先選完三選一（不喜歡可以打「這不是我要的」重抽一次）。";refresh();return}
   {const r=localCalm(t);if(r){if(r.err)toast=r.err;refresh();return}}
+  if(S.enc&&!S.enc.raid&&/逃跑粉|逃跑藥|逃跑药/.test(t)){const r=useEscape();if(r.err)toast=r.err;refresh();return}   /* v5.13：打字撒逃跑粉，不經過 AI、不付代價 */
   if(!AI.on()){toast="還沒設定 AI：按右上角 ⚙ 填 Gemini 或 OpenRouter 的金鑰。現在先用下面的按鈕。";renderPanel();return}
   busy=true;toast="";renderAll();
   try{
@@ -204,10 +205,19 @@ async function sendSay(){
     openDraft(it,t);
   }catch(e){busy=false;toast="AI 出錯："+e.message+"（可以改用按鈕）";renderAll()}
 }
+/* v5.13：旁白只寫上次寫過之後的新紀錄（不會重複寫舊的）；寫好插回那件事的後面（不會落後到別的事情後面） */
+let narrFrom=0;   /* 這次行動開始前的紀錄編號：旁白只寫這次行動之後的紀錄 */
 async function narrate(said){
   if(!AI.on())return;
-  const last=S.log[S.log.length-1];if(!last)return;
-  try{const t=await aiNarrate(said,last.t);if(t){log(t,"story");refresh()}}catch(e){}
+  const from=Math.max(S.narrN||0,narrFrom);
+  const fresh=S.log.filter(l=>(l.n||0)>from&&l.type!=="story"&&l.type!=="letter"&&l.t);
+  S.narrN=S.logN||0;
+  if(!fresh.length)return;
+  const anchor=fresh[fresh.length-1],prev=(S.log.filter(l=>l.type==="story").slice(-1)[0]||{}).t||"";
+  try{const t=await aiNarrate(said,fresh.slice(-6).map(l=>l.t).join("\n"),prev);if(!t||t===prev)return;
+    const e={day:anchor.day,hour:anchor.hour,t,type:"story",n:anchor.n};
+    const i=S.log.indexOf(anchor);if(i<0)S.log.push(e);else{let j=i+1;while(j<S.log.length&&S.log[j].type==="story")j++;S.log.splice(j,0,e)}
+    refresh()}catch(e){}
 }
 
 /* ───── 選單 ───── */
@@ -275,7 +285,7 @@ function localCalm(t){
 }
 function sheetFrags(){
   const c=fragCounts(),ex=canExchange();
-  let h=`<h3>技能碎片 ${S.frags.length}</h3><div class="note">組合不管成敗都會留下碎片。3 片同大類 → 同大類三選一；10 片任意 → 任意三選一。跨大類的碎片每一類都算。</div>
+  let h=`<h3>技能碎片 ${S.frags.length}</h3><div class="note">升級戰的「組合」不管成敗都會留下碎片（以前的碎片也還能換）。3 片同大類 → 同大類三選一；10 片任意 → 任意三選一。跨大類的碎片每一類都算。</div>
   <p>${Object.entries(c).map(([k,n])=>`${k} ${n}`).join("、")||"還沒有碎片"}</p>`;
   h+=ex.cats.map(k=>`<button data-x="${k}">用 3 片「${k}」碎片換技能</button>`).join(" ");
   if(ex.any)h+=` <button data-x="">用 10 片任意碎片換技能</button>`;
@@ -392,7 +402,7 @@ function sheetRecipes(){
   <div class="note">也可以直接打字，例如「我用石片和木頭做一把石刀」。</div>`);
 }
 function exportText(){
-  return `孤獨異世界紀錄 v${VER}\n第${S.day}天 ${String(S.hour).padStart(2,"0")}:00　第${S.ch}章　在${S.at}　${S.lv}級 BP${bpOf()}　HP ${S.hp}/${hpMax()}　MP ${S.mp}\n`+
+  return `孤獨異世界紀錄 v${APP_VER}（存檔 ${VER}）\n第${S.day}天 ${String(S.hour).padStart(2,"0")}:00　第${S.ch}章　在${S.at}　${S.lv}級 BP${bpOf()}　HP ${S.hp}/${hpMax()}　MP ${S.mp}\n`+
    `避難所：${S.needs.避難所?"✔":"✘"}　房子：${myHouses().map(h=>`${h.at}${h.lv}`).join("、")||"無"}\n技能：${S.skills.map(s=>`${s.n}${s.lv}(用${s.used})`).join("、")}\n倉庫：${S.store.map(s=>s.n).join("、")||"無"}\n`+
    `碎片：${S.frags.length}　看過的技巧：${S.seen.map(x=>x.n).join("、")||"無"}\n材料：${MATS.filter(m=>S.mats[m]).map(m=>m+"×"+S.mats[m]).join("、")}　物品：${S.items.map(i=>i.n).join("、")}　裝備：${SLOTS.filter(k=>S.eq[k]).map(k=>k+"="+S.eq[k].n).join("、")}　金幣 ${S.gold}\n`+
    `統計：${JSON.stringify(S.stats)}\n紀錄：\n`+S.log.map(l=>`第${l.day}天 ${String(l.hour).padStart(2,"0")}:00 ${l.t}`).join("\n");
@@ -425,7 +435,7 @@ function sheetBase(){
   if(S.nest==="S")h+=`<p><button id="retire" ${lock?"disabled":""}>蓋${MANSION.n}（退休）</button> <span class="note">${esc(costWord(MANSION.cost))}。${esc(MANSION.d)}</span></p>`;
   if(S.nest==="S")h+=`<p><button id="mkcure" ${lock?"disabled":""}>開發萬靈藥（魔核 5、草 5，4 小時）</button> <span class="note">治好一處捨身傷。</span></p>`;
   h+=`<h3>設施 ${S.fac.length}/${FAC_SLOTS(nestIdx())}</h3><div class="note">放一個技能進去才會運作；技能大類對口效果更好。放進去的技能離開技能表，拿回來放回技能表（滿了進倉庫）。放、拿各花 1 小時。升級戰時，每座在運作的設施擋掉 1 條劣勢。</div>`;
-  h+=S.fac.map((f,fi)=>{const d=facDef(f.n);return `<div class="box"><b>${esc(f.n)}</b>　對口：${esc(d.cat)}${f.s?(facMatch(f)?"　✔對口":""):"　（沒在運作）"}<br><span class="note">${esc(d.d)}</span><br>
+  h+=S.fac.map((f,fi)=>{const d=facDef(f.n);return `<div class="box"><b>${esc(f.n)}</b>　對口：${esc(d.cat)}${f.s?(facMatch(f)?"　✔對口":""):"　（沒在運作）"}<br><span class="note">${esc(d.d)}${facHint(f.n)?"<br>"+esc(facHint(f.n)):""}</span><br>
     ${f.s?`技能：【${esc(f.s.n)}】${f.s.lv}・${esc(f.s.c.join("・"))} <button data-fo="${fi}" ${lock?"disabled":""}>拿回來</button>`:""}
     <select data-fs="${fi}" ${lock?"disabled":""}><option value="">${f.s?"換成…":"放一個技能進去…"}</option>${S.skills.map((s,si)=>`<option value="${si}">${esc(s.n)}（${s.lv}・${esc(s.c.join("・"))}${s.c.includes(d.cat)?"・對口":""}）</option>`).join("")}</select></div>`}).join("")||"<p>（還沒有設施）</p>";
   sheet(h);

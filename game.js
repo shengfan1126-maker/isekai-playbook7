@@ -35,7 +35,7 @@ const pick=a=>a[Math.floor(rand()*a.length)];
 const shuffle=a=>{const b=a.slice();for(let i=b.length-1;i>0;i--){const j=Math.floor(rand()*(i+1));[b[i],b[j]]=[b[j],b[i]]}return b};
 const uniq=a=>[...new Set(a)];
 const count=(o,k,n)=>{o[k]=(o[k]||0)+(n==null?1:n)};
-const log=(t,type)=>{S.log.push({day:S.day,hour:S.hour,t,type:type||""});if(S.log.length>400)S.log.shift()};
+const log=(t,type)=>{S.logN=(S.logN||0)+1;S.log.push({day:S.day,hour:S.hour,t,type:type||"",n:S.logN});if(S.log.length>400)S.log.shift()};
 const pg=()=>gIdx(S.lv);
 const bpOf=()=>{const i=pg();return Math.round(BP_FLOOR[i]+BP_W[i]*S.exist/EXIST_MAX(S.lv))};
 const scarN=p=>S.scars.filter(x=>x===p).length;
@@ -85,6 +85,7 @@ function newGame(){
     eq:{},rel:{},langs:[],cleared:[],dun:{},maze:{best:0},traded:{},uniqBought:{},
     stats:{actions:{},skillUse:{},combos:{try:0,learn:0,frag:0},enc:0,ch1Day:null,nestDay:{},lvDay:{},raids:[],ooc:{add:0,remove:0,edit:0}}};
   SLOTS.forEach(k=>S.eq[k]=null);S.hp=hpMax();
+  for(let i=0;i<2;i++)S.items.push(mkItem("逃跑粉","escape"));   /* v5.13：開場送 2 包逃跑粉 */
   log(OPENING,"letter");
   log(`你的技能：${sk.map(s=>`【${s.n}】${s.d}`).join(" ")}`);
   return S;
@@ -267,7 +268,10 @@ function die(out,why,noRevive){
 function doGather(q,out){
   const P=placeOf();
   if(out.res==="fail"){S.hp=Math.max(1,S.hp-Math.ceil(q.unit/2));out.lines.push("找了半天沒什麼收穫，還被劃傷了。");return}
-  const n=out.res==="big"?4:2;const g={};for(let i=0;i<n;i++)count(g,pick(P.res));
+  const n=out.res==="big"?4:2;const g={};
+  /* v5.13：第一章還沒有避難所時，第一份一定是草棚還缺、這裡又有的材料（不會卡在第一章） */
+  let first=null;if(S.ch===1&&!S.needs.避難所){const sh=RECIPES.find(r=>r.n==="草棚");first=Object.keys(sh.need).find(m=>P.res.includes(m)&&(S.mats[m]||0)<sh.need[m])||null}
+  for(let i=0;i<n;i++)count(g,i===0&&first?first:pick(P.res));
   Object.entries(g).forEach(([m,c])=>{addMat(m,c);out.gain.push(`${m}×${c}`)});
   out.lines.push(`在${P.n}採集。`);
   if(q.useSkill)applyEffect({e:q.useSkill.e,f:"感知",n:q.useSkill.n},out);
@@ -682,7 +686,9 @@ function facDay(){
   const out=[];
   facOn().forEach(f=>{const k=gIdx(f.s.lv)+1,m=facMatch(f),rc=facRace(f),every=m?2:3;
     if(f.n==="農田"){const n=k*(m?2:1)*(rc?2:1);addMat("野果",n);out.push(`農田 野果×${n}`)}
-    else if(f.n==="修練場"){if(++f.t>=(rc?2:every)){f.t=0;S.frags.push({cats:f.s.c.slice(),e:f.s.e.slice(0,3)});out.push(`修練場 碎片（${f.s.c.join("・")}）`)}}
+    else if(f.n==="修練場"){if(++f.t>=(rc?2:every)){f.t=0;   /* v5.13：碎片退場，修練場改成「想通一次」＝三選一 */
+      if(S.pick){const v=pickPts();S.pts+=v;out.push(`修練場 心得（三選一還沒選，化成據點點數 +${v}）`)}
+      else{openPick("修練場",[f.s],f.s.e.slice());out.push(`修練場 想通了一件事（三選一）`)}}}
     else if(f.n==="鍛冶台"){if(++f.t>=(rc?2:m?3:4)){f.t=0;out.push(`鍛冶台 ${facItem(genMagic(GRADES[Math.max(0,nestIdx())]))}`)}}
     else if(f.n==="藥草園"){if(++f.t>=(m?3:4)){f.t=0;f.k=f.k==="藍藥水"?"紅藥水":"藍藥水";out.push(`藥草園 ${facItem(mkItem(f.k,"potion"))}`);if(rc)out.push(`藥草園 ${facItem(mkItem("紫藥水","potion"))}`)}}});
   return out.length?"據點產出："+out.join("、")+"。":"";

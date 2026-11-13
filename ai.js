@@ -375,6 +375,7 @@ const STEP_SYS=`你是文字冒險遊戲「孤獨異世界」裡的大賢者：�
 - tags 只能從這個來源自己的標籤裡挑（附加過的也可以），而且要挑這一步需要的：
   傷害＝${ART_PRIM.傷害.join("、")}；防護＝${ART_PRIM.防護.join("、")}；位移＝${ART_PRIM.位移.join("、")}；破綻＝${ART_PRIM.破綻.join("、")}；隱匿＝${ART_PRIM.隱匿.join("、")}；環境＝${ART_PRIM.環境.join("、")}；
   控制：${Object.entries(ART_CTRL).map(([k,v])=>k+"＝"+v.join("、")).join("；")}。
+- 標籤只有遊戲這 15 個：${ART_TAGS.join("、")}。黏、粉末、沙、泥＝土；酸、冰、霧＝水；毒、影＝暗；熱、炎＝火；雷＝風。撒沙、撒粉弄瞎＝控制・致盲（土）；酸蝕、腐蝕＝傷害（水）。
 - 觸發詞（意思相近都算）：組合、結合、融合、混合、注入、裹上、點燃、加速、實驗、試試＝附加或增幅；抓住、按住、綁、困住、拖住、絆倒、弄瞎、悶住、嚇退、毒倒＝控制。`;
 async function aiSteps(text){
   const ctx=`【現況】\n${aiContext()}\n\n【可用的東西】（名字｜種類｜標籤｜本來用法）\n${artListText()}\n\n【眼前的敵人】${S.enc?`${S.enc.n}（${S.enc.lv} 級）${foeTags().length?"，標籤："+foeTags().join("、"):""}`:"無"}`;
@@ -382,8 +383,8 @@ async function aiSteps(text){
   const res=await callModel(msgs,1500,r=>{const o=parseObjs(r.txt).find(x=>x&&(x.act||x.steps));if(!o)throw new Error("沒有照格式回 JSON");return o});
   const j=res.val,arr=x=>Array.isArray(x)?x:[];
   const names=artSources().map(x=>x.n);
-  const steps=arr(j.steps).filter(x=>x&&typeof x==="object").slice(0,10).map(x=>({src:String(x.src||"").replace(/[×x*]\s*\d+$/,""),prim:String(x.prim||""),kind:String(x.kind||""),
-    tags:arr(x.tags).map(String).filter(t=>ART_TAGS.includes(t)),to:String(x.to||""),say:String(x.say||"").slice(0,60)}))
+  const steps=arr(j.steps).filter(x=>x&&typeof x==="object").slice(0,10).map(x=>normStep({src:String(x.src||"").replace(/[×x*]\s*\d+$/,""),prim:String(x.prim||""),kind:String(x.kind||""),
+    tags:arr(x.tags).map(String),to:String(x.to||""),say:String(x.say||"").slice(0,60)})).map(x=>Object.assign(x,{tags:x.tags.filter(t=>ART_TAGS.includes(t))}))
     .map(x=>Object.assign(x,{src:names.find(n=>n===x.src)||names.find(n=>x.src&&(n.includes(x.src)||x.src.includes(n)))||x.src}))
     .filter(x=>ART_PRIMS.includes(x.prim));
   const acts=["fight","retreat","potion","talk"];
@@ -392,8 +393,8 @@ async function aiSteps(text){
 }
 const NARR_SYS=`你是「孤獨異世界」的旁白。主角是一個人被丟到異世界的轉生者，沒有同伴，四周都是荒野。
 用繁體中文寫 2～4 句，描述剛剛發生的事。只能描述【結果】裡寫到的東西：不要加任何新的物品、數字、人物、同伴、技能；不要替玩家決定下一步；不要寫選項。語氣冷靜、有生存感。`;
-async function aiNarrate(said,result){
-  const msgs=[{role:"system",content:NARR_SYS+'\n只輸出 JSON：{"story":"故事內容"}'},{role:"user",content:`【玩家說】${said||"（用按鈕行動）"}\n【結果】${result}`}];
+async function aiNarrate(said,result,prev){
+  const msgs=[{role:"system",content:NARR_SYS+'\n上一段旁白已經寫過的事不要再寫一次，只寫【結果】裡新發生的。\n只輸出 JSON：{"story":"故事內容"}'},{role:"user",content:`${prev?`【上一段旁白（已經寫過，不要重複）】${prev}\n`:""}【玩家說】${said||"（用按鈕行動）"}\n【結果】${result}`}];
   const res=await callModel(msgs,800,r=>{const o=parseObjs(r.txt).find(x=>x&&x.story);if(o)return String(o.story);if(/[\u4e00-\u9fff]/.test(r.txt)&&!r.txt.includes("{"))return r.txt;throw new Error("沒有故事")});
   return res.val;
 }

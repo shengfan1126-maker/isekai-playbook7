@@ -4,8 +4,8 @@
    dbg：印出第一局每一場升級戰的判定 */
 const fs=require("fs"),vm=require("vm");
 const ctx=vm.createContext({console,Math});
-vm.runInContext(["data.js","game.js","world.js"].map(f=>fs.readFileSync(__dirname+"/"+f,"utf8")).join("\n")+
-  "\nthis.G={newGame,planOf,exec,sleep,startCh2,failChoice,get S(){return S},hpMax,placeOf,gIdx,canExchange,drawChoices,exchange,RECIPES,MOVES,PLACES,canBuild,build,canEvolve,evolve,usePotion,bpOf,hasItem,MP_MAX,mpMax,makeCure,useCure,pickFac,facPut,startBoss,donate,donateItem,FAC,GRADES,facBlock,hasWeapon,startSpecial,specialHere,baseable,payables,equip,canEquip,travel,homeAt};",ctx);
+vm.runInContext(["data.js","game.js","world.js","combo.js"].map(f=>fs.readFileSync(__dirname+"/"+f,"utf8")).join("\n")+
+  "\nthis.G={newGame,planOf,exec,sleep,startCh2,failChoice,get S(){return S},hpMax,placeOf,gIdx,canExchange,drawChoices,exchange,RECIPES,MOVES,PLACES,canBuild,build,canEvolve,evolve,usePotion,bpOf,hasItem,MP_MAX,mpMax,makeCure,useCure,pickFac,facPut,startBoss,donate,donateItem,FAC,GRADES,facBlock,hasWeapon,startSpecial,specialHere,baseable,payables,equip,canEquip,travel,homeAt,useEscape,choosePick};",ctx);
 const G=ctx.G;
 if(process.env.DIS)vm.runInContext(`Object.assign(ARMY_DIS,${process.env.DIS})`,ctx);
 const SHESH=process.argv.includes("shesh"),DBG=process.argv.includes("dbg");
@@ -46,7 +46,7 @@ function goGather(mat){
   return act({act:"gather",skills:s&&S.mp>=1?[s.n]:[]});
 }
 const FAC_PREF=["柵欄","哨塔","藥草園","鍛冶台","修練場","農田"];
-const KEEP={生肉:3,野果:3,熟肉:0,石片:3,木材:4,草:4,獸皮:2,骨頭:0,魔核:4,礦石:2,魔晶:0};
+const KEEP={生肉:3,野果:3,熟肉:0,石片:3,木材:4,草:4,獸皮:2,骨頭:1,魔核:4,礦石:2,魔晶:0};
 function baseChores(){
   const S=G.S;
   if(S.facPick){const n=FAC_PREF.find(x=>S.facPick.includes(x))||S.facPick[0];G.pickFac(n);return true}
@@ -71,9 +71,10 @@ function play(idx){
       if(t==="failchoice"){G.failChoice(true);continue}
       if(t==="boss"){G.startBoss();continue}
     }
+    if(S.pick&&!S.enc){G.choosePick(0);if(S.pick)S.pick=null;continue}   /* 三選一：選第一個 */
     if(S.raid&&S.enc){raidBattle();continue}
     if(S.enc){const d=G.gIdx(S.enc.lv)-G.gIdx(S.lv);const s=bestFight();const q=G.planOf({act:"fight",skills:s&&S.mp>=1?[s.n]:[]});
-      if(d<=1&&q.need<=maxPay(q)&&S.hp>q.unit*2)G.exec(q,pay(q,q.need));else act({act:"retreat"},null);continue}
+      if(d<=1&&q.need<=maxPay(q)&&S.hp>q.unit*2)G.exec(q,pay(q,q.need));else if(S.items.some(i=>i.k==="escape")){W.powder=(W.powder||0)+1;G.useEscape()}else act({act:"retreat"},null);continue}
     if(S.hp<G.hpMax()*.4&&G.hasItem("potion")){G.usePotion();continue}
     if(S.hour>=20||S.hp<G.hpMax()*.4){const h=G.homeAt();if(h&&S.at!==h)G.travel(h,true);else G.sleep();continue}   /* v5.8：回據點睡才睡得飽 */
     if(G.canEvolve()){G.evolve();continue}
@@ -104,6 +105,7 @@ function play(idx){
     if(!S.eq.頭&&has({獸皮:1})){act({act:"craft",craft:"皮帽"});continue}
     if(!S.eq.鞋子&&has({草:2})){act({act:"craft",craft:"草鞋"});continue}
     if(!full&&!S.items.some(i=>i.n==="背包")&&has({獸皮:1,草:2})){act({act:"craft",craft:"背包"});continue}
+    if(!full&&S.items.filter(i=>i.k==="escape").length<2&&has({草:2,骨頭:1})){act({act:"craft",craft:"逃跑粉"});continue}
     if(full){}
     else if(S.items.filter(i=>i.k==="potion").length<2&&has({草:2,魔核:1})){act({act:"craft",craft:"紅藥水"});continue}
     else if(S.items.filter(i=>i.k==="potion").length<2&&has({草:3})){act({act:"craft",craft:"草藥膏"});continue}

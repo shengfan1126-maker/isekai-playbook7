@@ -9,11 +9,18 @@ const ART_PRIM={
   防護:["硬化","包覆","土","水","風","木"],
   位移:["移動","風","重量"],
   破綻:["感知","聲音","光"],
-  隱匿:["包覆","聲音","暗","木"],
+  隱匿:["包覆","聲音","暗","木","土"],
   環境:["土","水","火","風","木"],
   附加:ART_TAGS,增幅:ART_TAGS};
-const ART_CTRL={束縛:["包覆","重量","土","木"],減速:["水","土","包覆","暗","木"],致盲:["光","火","暗"],擊退:["重量","風"],
-  窒息:["包覆","水","風"],威嚇:["火","光","聲音"],中毒:["暗"]};
+const ART_CTRL={束縛:["包覆","重量","土","木"],減速:["水","土","包覆","暗","木"],致盲:["光","火","暗","土"],擊退:["重量","風"],
+  窒息:["包覆","水","風","土"],威嚇:["火","光","聲音"],中毒:["暗"]};
+/* v5.13：標籤合併（用戶 11-12 20:06）。說到這些詞，程式自動換成遊戲的 15 個標籤；名字和敘事照玩家說的寫 */
+const TAG_ALIAS={黏:"土",黏液:"土",粉末:"土",粉:"土",沙:"土",沙子:"土",泥:"土",岩:"土",石:"土",
+  酸:"水",冰:"水",冷:"水",霧:"水",雪:"水",毒:"暗",影:"暗",詛咒:"暗",熱:"火",炎:"火",熔岩:"火",雷:"風",電:"風",草:"木",根:"木"};
+const normTag=t=>{t=String(t||"").trim();return TAG_ALIAS[t]||t};
+/* 腐蝕（酸）併進傷害：酸＝水，就是一般的水傷害 */
+function normStep(st){const x=Object.assign({},st,{tags:uniq((st.tags||[]).map(normTag))});
+  if(x.prim==="腐蝕"||(x.prim==="控制"&&x.kind==="腐蝕")){x.prim="傷害";x.kind=""}return x}
 const ART_PRIMS=Object.keys(ART_PRIM).concat("控制");
 /* 對手標籤：先從現有資料推出來（類別、名字），之後再一隻一隻標 */
 const ART_FOE={
@@ -45,7 +52,7 @@ function artSources(){
 }
 /* 檢查一組步驟。回傳每一步的結果、用到哪些來源、新用法幾步、能抵幾項 */
 function artCheck(steps,o){
-  o=o||{};const src=o.src||artSources(),by=n=>src.find(x=>x.n===n);
+  o=o||{};steps=(steps||[]).map(normStep);const src=o.src||artSources(),by=n=>src.find(x=>x.n===n);
   const fired=[],idle=[],res=[],attached={},mp={v:S.mp};
   uniq(steps.map(x=>x.src)).forEach(n=>{const x=by(n);
     if(!x){idle.push(`手邊沒有${n}`);return}

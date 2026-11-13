@@ -1,9 +1,9 @@
 /* sim.js：用 node 跑機器人玩家，看第一章（求生四項打勾）要幾天、會不會死。用法：node sim.js [局數] */
 const fs=require("fs"),vm=require("vm");
 const ctx=vm.createContext({console,Math});
-vm.runInContext(["data.js","game.js","world.js"].map(f=>fs.readFileSync(__dirname+"/"+f,"utf8")).join("\n")+
-  "\nthis.G={newGame,planOf,exec,sleep,startCh2,failChoice,get S(){return S},hpMax,placeOf,gIdx,canExchange,drawChoices,exchange,RECIPES,MOVES,PLACES,travel,homeAt};",ctx);
-const G=ctx.G;
+vm.runInContext(["data.js","game.js","world.js","combo.js"].map(f=>fs.readFileSync(__dirname+"/"+f,"utf8")).join("\n")+
+  "\nthis.G={newGame,planOf,exec,sleep,startCh2,failChoice,get S(){return S},hpMax,placeOf,gIdx,canExchange,drawChoices,exchange,RECIPES,MOVES,PLACES,travel,homeAt,useEscape};",ctx);
+const G=ctx.G;let powder=0;
 function pay(q,want){const p={hp:0,mp:0,time:0,item:0};let n=want;for(const k of ["time","mp","item","hp"]){const t=Math.min(n,q.caps[k]);p[k]=t;n-=t}return p}
 const maxPay=q=>q.caps.hp+q.caps.mp+q.caps.time+q.caps.item;
 function act(it,want){const q=G.planOf(it);if(q.err)return null;return G.exec(q,pay(q,want==null?q.need:want))}
@@ -14,7 +14,7 @@ function play(maxDay){
     if(S.pending){if(S.pending.type==="ch2"){G.startCh2(true);break}if(S.pending.type==="failchoice"){G.failChoice(true);continue}}
     const sk=S.skills.filter(s=>s.today<3);
     if(S.enc){const d=G.gIdx(S.enc.lv)-G.gIdx(S.lv);const q=G.planOf({act:"fight",skills:sk[0]?[sk[0].n]:[]});
-      if(d<=1&&q.need<=maxPay(q))G.exec(q,pay(q,q.need));else act({act:"retreat"},null);continue}
+      if(d<=1&&q.need<=maxPay(q))G.exec(q,pay(q,q.need));else if(S.items.some(i=>i.k==="escape")){powder++;G.useEscape()}else act({act:"retreat"},null);continue}
     if(S.hour>=21||S.hp<G.hpMax()*.4){const h=G.homeAt();if(h&&S.at!==h)G.travel(h,true);else G.sleep();continue}
     const P=G.placeOf();
     if(Math.random()<.25&&sk.length&&S.mp>=1){const k=Math.min(sk.length,1+Math.floor(Math.random()*Math.min(3,S.mp)));
@@ -43,4 +43,4 @@ console.log("第一章完成天數（中位數）",med(done.map(s=>s.stats.ch1Da
 const sum=k=>rows.reduce((a,s)=>a+s.stats.combos[k],0)/N;
 console.log("每局組合",sum("try").toFixed(1),"次；學會",sum("learn").toFixed(1),"；碎片",sum("frag").toFixed(1),"；遭遇",(rows.reduce((a,s)=>a+s.stats.enc,0)/N).toFixed(1));
 const firstTick={};rows.forEach(s=>Object.keys(s.needs).forEach(k=>{if(s.needs[k])count2(firstTick,k)}));function count2(o,k){o[k]=(o[k]||0)+1}
-console.log("四項打勾的局數：",JSON.stringify(firstTick));
+console.log("四項打勾的局數：",JSON.stringify(firstTick),"；撒逃跑粉（每局）",(powder/N).toFixed(1));
