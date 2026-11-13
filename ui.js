@@ -236,8 +236,15 @@ function menuClick(k){
   if(k==="cure")return sheetCure();
   ({skills:sheetSkills,frags:sheetFrags,bag:sheetBag,recipes:sheetRecipes,stats:sheetStats,ooc:sheetOoc,trade:sheetTrade,base:sheetBase}[k]||(()=>{}))();
 }
-function sheet(html){$("sbody").innerHTML=html+`<p><button id="sx">關閉</button></p>`;$("sheet").classList.add("on");$("sx").onclick=closeSheet}
-function closeSheet(){$("sheet").classList.remove("on");refresh()}
+/* v5.12：每一頁上下各一個「關閉」；手機的「上一頁」只會關掉這一頁，不會離開遊戲 */
+function sheetHist(){try{if(!(history.state&&history.state.sh))history.pushState({sh:1},"")}catch(e){}}
+function dropHist(){try{if(history.state&&history.state.sh)history.back()}catch(e){}}
+function sheet(html){$("sbody").innerHTML=`<div class="sxtop"><button class="close2" id="sx0">✕ 關閉</button></div>`+html+`<button class="close" id="sx">關閉</button>`;$("sheet").classList.add("on");sheetHist();$("sx").onclick=closeSheet;$("sx0").onclick=closeSheet}
+function closeSheet(){$("sheet").classList.remove("on");dropHist();refresh()}
+if(typeof window!=="undefined"&&window.addEventListener)window.addEventListener("popstate",()=>{let hit=false;
+  if($("sheet")&&$("sheet").classList.contains("on")){$("sheet").classList.remove("on");hit=true}
+  if($("setsheet")&&$("setsheet").classList.contains("on")){closeSet(true);hit=true}
+  if(hit)refresh()});
 function sheetSkills(){
   const row=(s,i,where)=>`<tr><td><input type="checkbox" class="fk" value="${i}" ${where==="store"?"disabled":""}></td><td><b>${esc(s.n)}</b> ${s.lv}<br><span class="note">${s.c.join("・")}｜${s.e.join("・")}｜用了 ${s.used} 次｜今天剩 ${usesLeft(s)}</span></td><td><button data-sw="${where}|${i}">${where==="skills"?"→倉庫":"→技能表"}</button><br><button data-dn="${where}|${i}">捐 +${skillPts(s)}點</button>${canSellSkill()?` <button data-sl="${where}|${i}">賣 +${skillGold(s)}金</button>`:""} <button data-fo="${where}|${i}">忘掉</button></td></tr>`;
   sheet(`<h3>技能表 ${S.skills.length}/${SKILL_SLOTS}</h3><div class="note">每個技能一天 3 次。交換一次花 1 小時。勾 3 個同大類、同階的技能可以整合成高一階（4 小時）。技能滿了：整合、捐掉（據點點數，隨時）、賣掉（金幣，要在村子或有商人來的 D 級以上據點），或忘掉。</div>
@@ -492,7 +499,7 @@ let newgArmed=false,newgTimer=null;
 function disarmNewg(){newgArmed=false;$("newg").textContent="重新開始";snoteSet("")}
 /* v5.10：欄位是空的就不蓋掉已經存的金鑰（避免不小心清掉）；要清掉金鑰請打「清除」 */
 function keepKey(k,el){const v=el.value.trim();if(v==="清除"){ls.d(k);el.value="";return}if(v)ls.s(k,v);else if(ls.g(k))el.value=ls.g(k)}
-function closeSet(){disarmNewg();keepKey("or_key",EL.key);keepKey("gm_key",EL.gkey);ls.s("or_model",EL.model.value.trim());$("setsheet").classList.remove("on");refresh()}
+function closeSet(fromBack){disarmNewg();keepKey("or_key",EL.key);keepKey("gm_key",EL.gkey);ls.s("or_model",EL.model.value.trim());$("setsheet").classList.remove("on");if(fromBack!==true)dropHist();refresh()}
 function download(blob,name){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000)}
 function initSettings(){
   $("mseg").querySelectorAll("button").forEach(b=>b.onclick=()=>{MODE=b.dataset.m;ls.s("mowu_mode",MODE);modeUI()});
@@ -501,7 +508,8 @@ function initSettings(){
     try{await gemModels(true)}catch(e){snoteSet("抓不到："+(e.message||e),1)}b.disabled=false;b.textContent="重新抓 Gemini 模型名單";provUI()};
   $("refree").onclick=async()=>{const b=$("refree");b.disabled=true;b.textContent="抓取中…";
     try{await cachedList("free",true);ls.s("mowu_bad","{}")}catch(e){snoteSet("抓不到："+(e.message||e),1)}b.disabled=false;b.textContent="重新抓免費模型名單";modeUI()};
-  $("bset").onclick=()=>{modeUI();provUI();snoteSet("");$("setsheet").classList.add("on")};
+  $("bset").onclick=()=>{modeUI();provUI();snoteSet("");$("setsheet").classList.add("on");sheetHist()};
+  if($("setdone0"))$("setdone0").onclick=()=>closeSet();
   $("setdone").onclick=closeSet;
   $("setsheet").onclick=e=>{if(e.target===$("setsheet"))closeSet()};
   $("pickfree").onclick=async()=>{const b=$("pickfree");b.disabled=true;b.textContent="查詢中…";

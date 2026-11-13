@@ -106,3 +106,7 @@ label.chip small{color:var(--mute);font-weight:400;font-size:11px}
 .art-new{border-left:3px solid #7a3fa0}
 .art-ok{border-left:3px solid #999}
 .art-no{border-left:3px solid #b04a3c;opacity:.8}
+
+/* v5.12：頁面上方的關閉鈕（捲動時黏在上面） */
+.sxtop{position:sticky;top:-18px;z-index:2;display:flex;justify-content:flex-end;margin:-18px -16px 8px;padding:8px 12px;background:var(--bg);border-bottom:1px solid var(--chip)}
+.close2{background:var(--ink);color:var(--on-ink);font-weight:800;padding:8px 16px;border:none;border-radius:4px;cursor:pointer}
