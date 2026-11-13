@@ -2,7 +2,7 @@
    用戶 11-11 定：
    - 裝備欄：頭、項鍊、戒指、武器（單手／雙手近戰／單手遠程／雙手遠程）、副手（盾配單手近戰；箭矢袋／石袋配遠程）、衣服、鞋子
    - 遠程武器多一條優勢；近戰打遠程的對手要多付一項才能接近；雙手近戰破壞力＝大成功少付 1 項
-   - 下克上：裝備等級比對手低，白字照用但用完就壞；魔法物品比對手低，魔法效果沒用、用了一樣壞
+   - 下克上：武器比對手低兩級以上，白字照用但用完就壞（v5.11：差一級不壞）；魔法物品比對手低，魔法效果沒用、用了一樣壞
    - 魔法物品一個效果、一天 3 次；當代價一場只能付 1 次，同一場付第 2 次就壞
    - 壞掉、碎掉、用掉、丟失都是永久的，不能修
    - 戰鬥中可以喝藥，敵人照樣打你一下 */
@@ -153,7 +153,8 @@ function afterFight(q,out){
   if(out.res!=="fail"&&q.judge){const rg=mgOn("regen").length;if(rg){const h=Math.ceil(hpMax()*.1*rg);S.hp=Math.min(hpMax(),S.hp+h);out.gain.push(`再生 HP +${h}`)}}
   const w=q.useWeapon;if(!w||!S.enc&&!q.foe)return;
   const fi=Math.min(6,q.foe!=null?q.foe:foeIdx());   /* 魔王算 S 級 */
-  if(gIdx(w.lv)<fi&&eqItems().includes(w)){loseItem(w);out.paid.push(`${w.n} 撐不住，壞了（${w.lv} 級打 ${GRADES[Math.min(6,fi)]} 級，不能修）`);spareWeapon(out)}
+  /* v5.11：差兩級以上才會壞（差一級照樣能用） */
+  if(gIdx(w.lv)<fi-1&&eqItems().includes(w)){loseItem(w);out.paid.push(`${w.n} 撐不住，壞了（${w.lv} 級打 ${GRADES[Math.min(6,fi)]} 級，差兩級以上，不能修）`);spareWeapon(out)}
 }
 /* 輸一場受傷：殘影斗篷一天 3 次免傷 */
 function takeHit(d,out){const dp=uniqOn("displace");if(dp&&mgUses(dp)>0){dp.use=(dp.use||0)+1;out.lines.push(`${dp.n}一晃，攻擊打在殘影上（今天第 ${dp.use}/3 次）。`);return 0}S.hp-=d;return d}
