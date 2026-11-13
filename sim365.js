@@ -5,7 +5,7 @@
 const fs=require("fs"),vm=require("vm");
 const ctx=vm.createContext({console,Math});
 vm.runInContext(["data.js","game.js","world.js"].map(f=>fs.readFileSync(__dirname+"/"+f,"utf8")).join("\n")+
-  "\nthis.G={newGame,planOf,exec,sleep,startCh2,failChoice,get S(){return S},hpMax,placeOf,gIdx,canExchange,drawChoices,exchange,RECIPES,MOVES,PLACES,canBuild,build,canEvolve,evolve,usePotion,bpOf,hasItem,MP_MAX,mpMax,makeCure,useCure,pickFac,facPut,startBoss,donate,donateItem,FAC,GRADES,facBlock,hasWeapon,startSpecial,specialHere,baseable,payables,equip,canEquip};",ctx);
+  "\nthis.G={newGame,planOf,exec,sleep,startCh2,failChoice,get S(){return S},hpMax,placeOf,gIdx,canExchange,drawChoices,exchange,RECIPES,MOVES,PLACES,canBuild,build,canEvolve,evolve,usePotion,bpOf,hasItem,MP_MAX,mpMax,makeCure,useCure,pickFac,facPut,startBoss,donate,donateItem,FAC,GRADES,facBlock,hasWeapon,startSpecial,specialHere,baseable,payables,equip,canEquip,travel,homeAt};",ctx);
 const G=ctx.G;
 if(process.env.DIS)vm.runInContext(`Object.assign(ARMY_DIS,${process.env.DIS})`,ctx);
 const SHESH=process.argv.includes("shesh"),DBG=process.argv.includes("dbg");
@@ -75,7 +75,7 @@ function play(idx){
     if(S.enc){const d=G.gIdx(S.enc.lv)-G.gIdx(S.lv);const s=bestFight();const q=G.planOf({act:"fight",skills:s&&S.mp>=1?[s.n]:[]});
       if(d<=1&&q.need<=maxPay(q)&&S.hp>q.unit*2)G.exec(q,pay(q,q.need));else act({act:"retreat"},null);continue}
     if(S.hp<G.hpMax()*.4&&G.hasItem("potion")){G.usePotion();continue}
-    if(S.hour>=20||S.hp<G.hpMax()*.4){G.sleep();continue}
+    if(S.hour>=20||S.hp<G.hpMax()*.4){const h=G.homeAt();if(h&&S.at!==h)G.travel(h,true);else G.sleep();continue}   /* v5.8：回據點睡才睡得飽 */
     if(G.canEvolve()){G.evolve();continue}
     const ex=G.canExchange();if(ex.cats.length){const c=ex.cats[0];const ch=G.drawChoices(c);if(ch.length){G.exchange(c,ch[0]);continue}}
     if(S.ch===1){

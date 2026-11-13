@@ -159,8 +159,8 @@ function planOf(it){
     if(!MOVES.some(m=>m.n===it.move))q.err=q.err||"要選一個手法";
   }
   if(act==="craft"){const r=RECIPES.find(x=>x.n===it.craft);q.recipe=r;
-    if(!r)q.err="沒有這個配方";else if(r.cook&&!S.needs.火)q.err="要先有火（先做出火種）";else if(!["skill","shelter","food"].includes(r.k)&&bagFull()&&!(GEAR[r.n]&&!S.eq[GEAR[r.n].slot]))q.err=`背包滿了（${bagMax()} 件）`;else if(!Object.entries(r.need).every(([m,n])=>(S.mats[m]||0)>=n))q.err="材料不夠";
-    q.base=r&&r.hard?0:1;}
+    if(!r)q.err="沒有這個配方";else if(r.cook&&!S.needs.火)q.err="要先有火（先做出火種）";else if(r.tag&&!hasTag(r.tag))q.err=`要有帶「${r.tag}」的技能`;else if(!["skill","shelter","food"].includes(r.k)&&bagFull()&&!(GEAR[r.n]&&!S.eq[GEAR[r.n].slot]))q.err=`背包滿了（${bagMax()} 件）`;else if(!Object.entries(r.need).every(([m,n])=>(S.mats[m]||0)>=n))q.err="材料不夠";
+    q.base=1;}
   if(act==="gather"||act==="explore")q.base=1;
   if(act==="gather"&&!(placeOf().res||[]).length)q.err="這裡沒什麼好採的";
   if(act==="retreat")q.base=1;
@@ -186,8 +186,12 @@ function planOf(it){
   const adv=Math.min(2,(it.adv||[]).length),dis=Math.min(2,(it.dis||[]).length);
   if(adv){net+=adv;q.notes.push(`優勢（${it.adv.slice(0,2).join("、")}）+${adv}`)}
   if(dis){net-=dis;q.notes.push(`劣勢（${it.dis.slice(0,2).join("、")}）−${dis}`)}
+  const judged=!["move","rest","hunt","sleep"].includes(act),B=S.buff||{};
+  if(judged&&B.first){net+=1;q.notes.push("睡在木屋，今天第一件事 +1");q.useFirst=1}
   if(q.key)net=Math.min(net,0);
   q.net=net;q.need=Math.max(0,1-net)+(q.approach||0);q.bigAt=q.need+1;
+  if(judged&&B.fight&&S.enc&&["fight","retreat","combo"].includes(act)&&q.need>0){q.need--;q.bigAt=q.need+1;q.notes.push("睡在魔晶館：第一場戰鬥少付 1 項");q.useFight=1}
+  if(judged&&B.all&&q.need>0){q.need--;q.bigAt=q.need+1;q.notes.push("睡在魔晶殿：今天每件事少付 1 項")}
   if(q.luck&&q.need>0){q.need--;q.bigAt=q.need+1;q.notes.push(`${q.luck.n}：好運，少付 1 項`)}else q.luck=null;
   if(q.smash&&q.need>=1){q.bigAt=q.need;q.notes.push("雙手破壞力：大成功少付 1 項")}
   q.unit=hpUnit(q.key);
@@ -207,7 +211,7 @@ function planOf(it){
 }
 const sumPick=p=>(p.hp||0)+(p.mp||0)+(p.time||0)+(p.item||0);
 function payCosts(q,p,out){
-  if(p.hp){S.hp-=p.hp*q.unit;out.paid.push(`HP −${p.hp*q.unit}`)}
+  if(p.hp){if(S.buff&&S.buff.hurt){S.buff.hurt=0;out.paid.push(`受傷（石屋睡飽，這次不扣 HP）`)}else{S.hp-=p.hp*q.unit;out.paid.push(`HP −${p.hp*q.unit}`)}}
   if(p.mp){S.mp-=p.mp*2;out.paid.push(`MP −${p.mp*2}`)}
   if(p.time){q.hours+=p.time*2;out.paid.push(`多花 ${p.time*2} 小時`)}
   if(p.item){const list=(p.items&&p.items.length?p.items:autoPay(q,p.item)).slice(0,p.item);payItemList(q,list,out)}
@@ -226,6 +230,7 @@ function exec(q,p){
     else if(p.dance&&q.dance){out.res="ok";q.dance.danced=1;out.lines.push(`${q.dance.n}自己飛了出去，替你擋下這一面。`)}
     else{const n=sumPick(p);out.res=n<q.need?"fail":n<q.bigAt?"ok":"big";payCosts(q,p,out);if(q.speed&&p.time)q.speed.use=(q.speed.use||0)+p.time}
   }
+  if(q.judge&&S.buff){if(q.useFirst)S.buff.first=0;if(q.useFight)S.buff.fight=0}
   if(q.mand.mp)S.mp-=q.mand.mp;
   if(q.useSkill)useSkill(q.useSkill,out);
   if(q.art){q.art.skills.forEach(s=>useSkill(s,out));q.art.mats.forEach(m=>{S.mats[m]=Math.max(0,(S.mats[m]||0)-1);out.paid.push(`${m} −1（拿來組合）`)});
@@ -246,7 +251,10 @@ function exec(q,p){
   if(!S.over&&!["raid","boss"].includes(q.act))advance(q.hours);
   return out;
 }
-function die(out,why){if(S.raid)S.stats.raids.push({day:S.day,lv:S.raid.kind,res:"dead",won:S.raid.won,lost:S.raid.lost});
+function die(out,why,noRevive){
+  if(!noRevive&&!S.raid&&!S.over){const h=reviveSpot();if(h){if(h.main)S.baseRev=true;else h.rev=true;
+    S.hp=Math.ceil(hpMax()/2);S.at=h.at;S.enc=null;const m=`${why}……你在${h.at}的${houseName(h.lv)}醒了過來（這間只能救你一次）。`;out&&out.lines.push(m);log(m,"good");return}}
+  if(S.raid)S.stats.raids.push({day:S.day,lv:S.raid.kind,res:"dead",won:S.raid.won,lost:S.raid.lost});
   S.over={end:"死亡",day:S.day};S.pending=null;S.enc=null;S.raid=null;out&&out.lines.push(why);log(why,"end")}
 
 function doGather(q,out){
@@ -396,7 +404,7 @@ function calmErr(){
 /* 專心鍛鍊：一小時練一次，扣今天的一次次數、熟練 +2，練到次數用完（或指定的次數、或快半夜） */
 function train(name,max){
   const e=calmErr();if(e)return {err:e};
-  const s=S.skills.find(x=>x.n===name);if(!s)return {err:`技能表裡沒有【${name}】`};
+  const s=S.skills.concat(S.store).find(x=>x.n===name);if(!s)return {err:`技能表和倉庫裡都沒有【${name}】`};
   if(usesLeft(s)<1)return {err:`【${s.n}】今天的次數用完了`};
   const lines=[],u0=s.used,lv0=s.lv;let h=0;
   while(usesLeft(s)>0&&S.hour+h+1<24&&(!max||h<max)){s.today++;h++;drill(s,2,lines)}
@@ -474,6 +482,98 @@ function cookMeat(){
   S.mats.生肉--;addMat("熟肉",1);log("烤了一塊肉（生肉 → 熟肉），花了 1 小時。");advance(1);return {ok:true};
 }
 
+/* ───── v5.8：房子（據點＝避難所）、移動、直接製作、逃跑粉 ───── */
+const houseName=lv=>(HOUSES.find(h=>h.lv===lv)||{}).n||"房子";
+const houses=()=>S.houses||(S.houses=[]);
+const hasTag=t=>S.skills.concat(S.store).some(s=>s.e.includes(t));
+/* 這裡有沒有能睡的房子：主據點（等級＝據點等級）、別處蓋的房子、第一章的草棚或岩穴 */
+function houseAt(at){
+  if(S.ch>=2&&S.base===at)return {at,lv:S.nest,main:true};
+  const h=houses().find(x=>x.at===at);if(h)return h;
+  if(S.ch===1&&S.shelterAt===at)return {at,lv:"F",ch1:true};
+  return null;
+}
+function homeAt(){return S.ch>=2?S.base:S.shelterAt}
+function wakeBuff(H){
+  const L=gIdx(H.lv),got=[];
+  if(L>=1){S.buff.first=1;got.push("第一件事 +1")}
+  if(L>=2){S.buff.hurt=1;got.push("第一次受傷不扣 HP")}
+  if(L>=3){S.mp=mpSleepCap()+2;got.push("MP 多 2")}
+  if(L>=4){S.buff.fight=1;got.push("第一場戰鬥少付 1 項")}
+  if(L>=6){S.buff.all=1;got.push("今天每件事少付 1 項")}
+  return `在${H.at}的${houseName(H.lv)}（${H.lv}）睡飽了${got.length?"："+got.join("、"):""}。`;
+}
+function reviveSpot(){
+  const L=[];if(S.ch>=2&&S.base&&gIdx(S.nest)>=5&&!S.baseRev)L.push({at:S.base,lv:S.nest,main:true});
+  houses().filter(h=>gIdx(h.lv)>=5&&!h.rev).forEach(h=>L.push(h));return L[0]||null;
+}
+/* 別處能蓋到幾級：主據點 −1（主據點 F 級時不能蓋，可以搬家） */
+const houseCap=()=>S.ch>=2?nestIdx()-1:-1;
+function canHouseHere(){
+  if(S.ch<2)return "第二章（建立據點）之後才能在別處蓋房子";
+  if(houseCap()<0)return "主據點 F 級時不能在別處蓋房子（可以搬家）；主據點升到 E 級，別處就能蓋草棚";
+  if(S.at===S.base)return "這裡是主據點（升級主據點用點數）";
+  if(!baseable(S.at))return "這裡不能蓋（要在野外，或打下來的敵對據點）";
+  if(S.enc||S.raid)return "戰鬥中不能蓋";
+  return true;
+}
+const halfCost=c=>{const o={};Object.entries(c).forEach(([m,n])=>{const k=Math.floor(n/2);if(k)o[m]=k});return o};
+const costWord=c=>Object.entries(c).map(([m,n])=>`${m}×${n}`).join("、");
+const lacks=c=>Object.entries(c).filter(([m,n])=>(S.mats[m]||0)<n).map(([m,n])=>`${m}×${n-(S.mats[m]||0)}`);
+function buildHouse(lv){
+  const ok=canHouseHere();if(ok!==true)return {err:ok};
+  const d=HOUSES.find(h=>h.lv===lv);if(!d)return {err:"沒有這一級"};
+  if(gIdx(lv)>houseCap())return {err:`別處最高只能蓋 ${GRADES[houseCap()]} 級（主據點 −1）`};
+  const old=houses().find(h=>h.at===S.at);if(old&&old.lv===lv)return {err:"這裡已經是這一級了"};
+  const miss=lacks(d.cost);if(miss.length)return {err:"還差 "+miss.join("、")};
+  const hrs=4+gIdx(lv);if(S.hour+hrs>=24)return {err:`要 ${hrs} 小時，今天來不及了`};
+  Object.entries(d.cost).forEach(([m,n])=>S.mats[m]-=n);
+  let back="";if(old){const r=halfCost(HOUSES.find(h=>h.lv===old.lv).cost);Object.entries(r).forEach(([m,n])=>addMat(m,n));back=r&&Object.keys(r).length?`，拆掉原本的${houseName(old.lv)}拿回 ${costWord(r)}`:"";old.lv=lv;old.rev=false}
+  else houses().push({at:S.at,lv,rev:false});
+  count(S.stats.actions,"house");log(`[蓋房子] 在${S.at}蓋了${d.n}（${lv}）${back}。${d.d}`,"act");advance(hrs);return {ok:true};
+}
+function razeHouse(){
+  const i=houses().findIndex(h=>h.at===S.at);if(i<0)return {err:"這裡沒有你蓋的房子"};
+  if(S.enc||S.raid)return {err:"戰鬥中不能拆"};
+  const h=houses()[i],r=halfCost(HOUSES.find(x=>x.lv===h.lv).cost);houses().splice(i,1);
+  Object.entries(r).forEach(([m,n])=>addMat(m,n));log(`[拆房子] 拆了${S.at}的${houseName(h.lv)}，拿回 ${costWord(r)||"一點點東西"}。`,"act");advance(1);return {ok:true};
+}
+function retire(){
+  if(S.ch<2||S.nest!=="S")return {err:"主據點 S 級才能蓋魔晶豪宅"};if(S.at!==S.base)return {err:"要在主據點"};
+  if(S.enc||S.raid)return {err:"戰鬥中不行"};const miss=lacks(MANSION.cost);if(miss.length)return {err:"還差 "+miss.join("、")};
+  Object.entries(MANSION.cost).forEach(([m,n])=>S.mats[m]-=n);
+  log(`你在${S.base}蓋好了魔晶豪宅，住了進去。異世界的日子，到這裡就夠了。（退休結局，第 ${S.day} 天）`,"end");
+  S.over={end:"退休",day:S.day};S.pending=null;return {ok:true};
+}
+/* 快速移動：到自己的房子（主據點、別處的房子、第一章的避難所）只要 1 小時 */
+function myHouses(){const L=[];const hm=homeAt();if(hm)L.push(houseAt(hm));houses().forEach(h=>{if(h.at!==hm)L.push(h)});return L.filter(Boolean)}
+function travel(to,thenSleep){
+  if(S.enc||S.raid)return {err:"戰鬥中不能走"};if(S.pending)return {err:"先處理上面的事"};
+  if(!to)return {err:S.ch>=2?"還沒有據點":"還沒有避難所（先蓋草棚或占岩穴）"};
+  if(!myHouses().some(h=>h.at===to))return {err:"只能快速移動到自己的房子"};
+  if(S.at!==to){const h=1*(1+scarN("腿"));S.at=to;count(S.stats.actions,"move");log(`[快速移動] 回到${to}（${h} 小時）。`,"act");
+    if(thenSleep){S.hour+=h;if(S.hour>=24){night(false);return {ok:true}}}else advance(h)}
+  else if(!thenSleep)return {err:"你就在這裡"};
+  if(thenSleep)sleep();return {ok:true};
+}
+/* 直接製作：不用選技能、不付代價、一定成功，只花時間 */
+const recipeShown=r=>(!r.tag||hasTag(r.tag))&&!(r.ch1&&S.ch>=2);
+function craftDirect(n){
+  const r=RECIPES.find(x=>x.n===n);if(!r)return {err:"沒有這個配方"};if(!recipeShown(r))return {err:r.tag?`要有帶「${r.tag}」的技能`:"現在不能做"};
+  if(S.enc||S.raid)return {err:"戰鬥中不能做東西"};if(S.pending)return {err:"先處理上面的事"};
+  const q=planOf({act:"craft",craft:n});if(q.err)return {err:q.err};
+  if(S.hour+q.hours>=24)return {err:`要 ${q.hours} 小時，今天來不及了，先睡吧`};
+  const out={act:"craft",res:"ok",lines:[],paid:[],gain:[]};doCraft(q,out);count(S.stats.actions,"craft");
+  log(`[製作] ${out.lines.join(" ")}${out.gain.length?" 得到："+out.gain.join("、"):""}（${q.hours} 小時）`,"act");advance(q.hours);return {ok:true};
+}
+/* 逃跑粉：一般遭遇直接脫身 */
+function useEscape(){
+  const i=S.items.findIndex(x=>x.k==="escape");if(i<0)return {err:"沒有逃跑粉"};
+  if(!S.enc)return {err:"現在沒有遭遇"};if(S.enc.raid||S.raid)return {err:"升級戰、魔王戰不能用逃跑粉"};
+  const n=S.enc.n;S.items.splice(i,1);S.enc=null;count(S.stats.actions,"escape");log(`[撤退] 撒出逃跑粉，趁${n}看不清楚時脫身了。（沒付代價）`,"act");advance(1);return {ok:true};
+}
+/* 鍛鍊也能練倉庫裡的技能 */
+
 /* ───── 時間與夜晚 ───── */
 function advance(h){S.hour+=h;if(S.hour>=24&&!S.over&&!S.raid)night(false)}
 function night(voluntary){
@@ -489,21 +589,26 @@ function night(voluntary){
   /* 喝 */
   if(S.needs.水||S.drank||(S.items.some(i=>i.n==="水袋"))||mgCount("spring")){S.thirst=0}
   else{S.thirst++;lines.push(`今天沒喝到水（口渴 ${S.thirst}/3）。`)}
-  if(S.thirst>=3){die(null,"三天沒喝水，你倒下了。");return}
+  if(S.thirst>=3){die(null,"三天沒喝水，你倒下了。",true);return}
   /* 冷 */
-  S.tags.會冷=!S.needs.火&&!S.needs.避難所;
+  const H=houseAt(S.at);
+  S.tags.會冷=!H&&!S.needs.火;
+  if(H&&S.tags.疾病>0){S.tags.疾病=0;lines.push("在屋子裡好好休養，病好了。")}
   if(S.tags.會冷){S.hp-=2;lines.push("夜裡很冷（會冷），HP −2。")}
   if(S.tags.疾病>0){S.hp-=1;S.tags.疾病--;lines.push("病還沒好，HP −1。")}
-  if(S.hp<=0){die(null,"你在夜裡倒下了。");return}
+  if(S.hp<=0){die(null,"你在夜裡倒下了。");if(S.over)return}
   /* 睡 */
   let cap=hpSleepCap();if(S.tags.飢餓)cap=Math.min(cap,Math.ceil(hpMax()/2));
-  const gain=voluntary?cap:Math.ceil(hpMax()*.3);
+  /* v5.8：在房子裡睡才睡得飽；野外只回一半 */
+  const gain=voluntary?(H?cap:Math.ceil(hpMax()*.5)):Math.ceil(hpMax()*.3);
   S.hp=Math.max(S.hp,Math.min(cap,S.hp+gain));
-  S.mp=voluntary?mpSleepCap():Math.min(mpSleepCap(),S.mp+3);
+  S.mp=voluntary?(H?mpSleepCap():Math.min(mpSleepCap(),S.mp+Math.ceil(mpMax()*.5))):Math.min(mpSleepCap(),S.mp+3);
   if(!voluntary)lines.push("撐到天亮才倒下，睡得很差。");
+  else if(!H)lines.push("在野外睡，只睡了半飽（回據點或房子睡才睡得飽）。");
   if(foodCount()>=5)tick("食物","存糧夠吃好幾天了");
   const fl=facDay();if(fl)lines.push(fl);
   S.day++;S.hour=WAKE;S.drank=false;S.ateToday=false;
+  S.buff={};if(H){const w=wakeBuff(H);if(w)lines.push(w)}
   S.skills.concat(S.store).forEach(s=>s.today=0);S.expToday=0;S.itemUsed={};
   S.items.concat(SLOTS.map(k=>S.eq[k]).filter(Boolean)).forEach(it=>{if(it.use)it.use=0;if(it.danced)it.danced=0});S.burst=0;
   log(lines.join(" "));

@@ -2,7 +2,7 @@
 const fs=require("fs"),vm=require("vm");
 const ctx=vm.createContext({console,Math});
 vm.runInContext(["data.js","game.js","world.js"].map(f=>fs.readFileSync(__dirname+"/"+f,"utf8")).join("\n")+
-  "\nthis.G={newGame,planOf,exec,sleep,startCh2,failChoice,get S(){return S},hpMax,placeOf,gIdx,canExchange,drawChoices,exchange,RECIPES,MOVES,PLACES};",ctx);
+  "\nthis.G={newGame,planOf,exec,sleep,startCh2,failChoice,get S(){return S},hpMax,placeOf,gIdx,canExchange,drawChoices,exchange,RECIPES,MOVES,PLACES,travel,homeAt};",ctx);
 const G=ctx.G;
 function pay(q,want){const p={hp:0,mp:0,time:0,item:0};let n=want;for(const k of ["time","mp","item","hp"]){const t=Math.min(n,q.caps[k]);p[k]=t;n-=t}return p}
 const maxPay=q=>q.caps.hp+q.caps.mp+q.caps.time+q.caps.item;
@@ -15,7 +15,7 @@ function play(maxDay){
     const sk=S.skills.filter(s=>s.today<3);
     if(S.enc){const d=G.gIdx(S.enc.lv)-G.gIdx(S.lv);const q=G.planOf({act:"fight",skills:sk[0]?[sk[0].n]:[]});
       if(d<=1&&q.need<=maxPay(q))G.exec(q,pay(q,q.need));else act({act:"retreat"},null);continue}
-    if(S.hour>=21||S.hp<G.hpMax()*.4){G.sleep();continue}
+    if(S.hour>=21||S.hp<G.hpMax()*.4){const h=G.homeAt();if(h&&S.at!==h)G.travel(h,true);else G.sleep();continue}
     const P=G.placeOf();
     if(Math.random()<.25&&sk.length&&S.mp>=1){const k=Math.min(sk.length,1+Math.floor(Math.random()*Math.min(3,S.mp)));
       const ss=sk.slice(0,k).map(s=>s.n);const objs=[{t:"place",n:S.at},{t:"none"},...S.seen.map(x=>({t:"seen",n:x.n}))];
