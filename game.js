@@ -61,9 +61,13 @@ const bagMax=()=>8+(S.items.some(i=>i.n==="背包")?4:0);
 const bagFull=()=>S.items.length>=bagMax();
 /* 存在值滿了自動進化，多出來的帶到下一級；進化當下 HP、MP 回滿 */
 const gainExist=n=>{S.exist+=n;autoEvolve();return n};
+/* v5.9：自己的等級最多比主據點高 1 級；還沒有據點（第一章）停在 F。存在值滿了先存著，據點升級後再進化 */
+const lvCap=()=>S.ch>=2&&S.nest!=null?Math.min(6,nestIdx()+1):0;
 function autoEvolve(){
-  while(S.lv!=="S"&&S.exist>=EXIST_MAX(S.lv)){S.exist-=EXIST_MAX(S.lv);S.lv=GRADES[gIdx(S.lv)+1];if(S.stats.lvDay[S.lv]==null)S.stats.lvDay[S.lv]=S.day;
-    S.hp=hpMax();S.mp=mpMax();log(`★ 進化！你現在是 ${S.lv} 級（BP ${bpOf()}），HP、MP 回滿。`,"good")}
+  while(S.lv!=="S"&&gIdx(S.lv)<lvCap()&&S.exist>=EXIST_MAX(S.lv)){S.exist-=EXIST_MAX(S.lv);S.lv=GRADES[gIdx(S.lv)+1];if(S.stats.lvDay[S.lv]==null)S.stats.lvDay[S.lv]=S.day;
+    S.hp=hpMax();S.mp=mpMax();S.capNote=0;log(`★ 進化！你現在是 ${S.lv} 級（BP ${bpOf()}），HP、MP 回滿。`,"good")}
+  if(S.lv!=="S"&&gIdx(S.lv)>=lvCap()&&S.exist>=EXIST_MAX(S.lv)){S.exist=EXIST_MAX(S.lv);
+    if(!S.capNote){S.capNote=1;log(S.ch<2?"存在值滿了，但你還沒有落腳的地方，進化不了。先蓋草棚（或占岩穴）、建立據點。":`存在值滿了，但你已經比據點（${S.nest}）高一級，進化不了。先把據點升到 ${GRADES[gIdx(S.lv)]} 級。`,"bad")}}
   if(S.lv==="S")S.exist=Math.min(S.exist,EXIST_MAX("S"));
 }
 
@@ -626,7 +630,7 @@ function startCh2(here){
   if(!here){log("你決定先不定下來。（隨時可以從選單建立據點）");return}
   S.ch=2;S.nest="F";S.base=S.at;S.bases=[S.at];S.stats.nestDay.F=S.day;S.pts=S.pts||0;S.fac=S.fac||[];
   log(`你在${S.at}建立了 F 級據點。第二章開始。捐物資換點數升級據點；每升一級，你的異香會引來大軍攻城。365 天後魔王（BP 99）復活。`,"good");
-  offerFac();
+  offerFac();autoEvolve();
 }
 /* 點數 */
 const ptsOf=m=>PTS_OF[m]||1;
@@ -649,7 +653,7 @@ function canBuild(){if(S.ch<2||S.nest==null)return null;const t=nestIdx()+1;if(t
 function build(){
   const b=canBuild();if(!b||!b.ok)return {err:"點數不夠"};
   S.pts-=b.need;S.nest=b.target;if(S.stats.nestDay[b.target]==null)S.stats.nestDay[b.target]=S.day;count(S.stats.actions,"upgrade");
-  log(`據點升到 ${b.target} 級。你的異香傳得更遠了。`,"act");
+  log(`據點升到 ${b.target} 級。你的異香傳得更遠了。`,"act");autoEvolve();
   startRaid(b.target);return {ok:true};
 }
 /* 設施 */

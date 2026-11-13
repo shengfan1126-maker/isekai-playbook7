@@ -13,7 +13,7 @@ function heal(){S.store=S.store||[];S.frags=S.frags||[];S.seen=S.seen||[];S.scar
   if(S.ch>=2&&!S.bases){S.bases=[];   /* 舊存檔：從紀錄找出當過據點的地方 */
     S.log.forEach(l=>{const m=l.t.match(/你在(.+?)建立了 F 級據點/)||l.t.match(/你把據點搬到(.+?)[。，]/);if(m&&!S.bases.includes(m[1]))S.bases.push(m[1])});
     if(S.base&&!S.bases.includes(S.base))S.bases.push(S.base)}
-  S.grow=null;S.growQ=[];S.pick=S.pick||null;if(!S.mvInit){S.mvInit=1;(S.moves||[]).forEach(m=>uniq(m.steps.map(x=>x.src)).forEach(n=>{const k=S.skills.concat(S.store).find(x=>x.n===n);if(k){k.mv=(k.mv||0)+1;if(k.mv%3===0)S.growQ.push(k.n)}}))}if(!S.grow&&typeof nextGrow==="function")nextGrow();if(S.pending&&S.pending.type==="raid")S.pending=null;if(!S.over)autoEvolve();if(S.ch===1&&!S.over)checkChapter();if(S.enc&&S.enc.raid&&!S.raid)S.enc=null;offerFac()}
+  S.grow=null;S.growQ=[];S.pick=S.pick||null;if(!S.mvInit){S.mvInit=1;(S.moves||[]).forEach(m=>uniq(m.steps.map(x=>x.src)).forEach(n=>{const k=S.skills.concat(S.store).find(x=>x.n===n);if(k){k.mv=(k.mv||0)+1;if(k.mv%3===0)S.growQ.push(k.n)}}))}if(!S.grow&&typeof nextGrow==="function")nextGrow();if(S.pending&&S.pending.type==="raid")S.pending=null;if(S.ch===1&&S.lv!=="F"&&!S.over){S.lv="F";S.exist=EXIST_MAX("F");S.capNote=1;S.hp=Math.min(S.hp,hpMax());S.mp=Math.min(S.mp,mpMax());log("（v5.9 修正）還沒有據點時不能進化：你退回 F 級，存在值先存滿。建立據點後就會馬上進化回來。","bad")}if(!S.over)autoEvolve();if(S.ch===1&&!S.over)checkChapter();if(S.enc&&S.enc.raid&&!S.raid)S.enc=null;offerFac()}
 
 /* ───── 狀態 ───── */
 function renderStatus(){
