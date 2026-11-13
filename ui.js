@@ -13,7 +13,7 @@ function heal(){S.store=S.store||[];S.frags=S.frags||[];S.seen=S.seen||[];S.scar
   if(S.ch>=2&&!S.bases){S.bases=[];   /* 舊存檔：從紀錄找出當過據點的地方 */
     S.log.forEach(l=>{const m=l.t.match(/你在(.+?)建立了 F 級據點/)||l.t.match(/你把據點搬到(.+?)[。，]/);if(m&&!S.bases.includes(m[1]))S.bases.push(m[1])});
     if(S.base&&!S.bases.includes(S.base))S.bases.push(S.base)}
-  S.grow=null;S.growQ=[];S.pick=S.pick||null;if(!S.mvInit){S.mvInit=1;(S.moves||[]).forEach(m=>uniq(m.steps.map(x=>x.src)).forEach(n=>{const k=S.skills.concat(S.store).find(x=>x.n===n);if(k){k.mv=(k.mv||0)+1;if(k.mv%3===0)S.growQ.push(k.n)}}))}if(!S.grow&&typeof nextGrow==="function")nextGrow();if(S.pending&&S.pending.type==="raid")S.pending=null;if(S.ch===1&&S.lv!=="F"&&!S.over){S.lv="F";S.exist=EXIST_MAX("F");S.capNote=1;S.hp=Math.min(S.hp,hpMax());S.mp=Math.min(S.mp,mpMax());log("（v5.9 修正）還沒有據點時不能進化：你退回 F 級，存在值先存滿。建立據點後就會馬上進化回來。","bad")}if(!S.over)autoEvolve();if(S.ch===1&&!S.over)checkChapter();if(S.enc&&S.enc.raid&&!S.raid)S.enc=null;offerFac()}
+  S.grow=null;S.growQ=[];S.pick=S.pick||null;if(!S.mvInit){S.mvInit=1;(S.moves||[]).forEach(m=>uniq(m.steps.map(x=>x.src)).forEach(n=>{const k=S.skills.concat(S.store).find(x=>x.n===n);if(k){k.mv=(k.mv||0)+1;if(k.mv%3===0)S.growQ.push(k.n)}}))}if(!S.grow&&typeof nextGrow==="function")nextGrow();if(S.pending&&S.pending.type==="raid")S.pending=null;if(!S.over&&gIdx(S.lv)>nestMax()){const was=S.lv;S.lv=GRADES[nestMax()];S.exist=Math.min(S.exist,EXIST_MAX(S.lv));S.capNote=0;S.hp=Math.min(S.hp,hpMax());S.mp=Math.min(S.mp,mpMax());log(`（v5.10 規則）玩家等級＝據點到過的最高等級：你從 ${was} 級回到 ${S.lv} 級。提升據點等級就會跟著進化。`,"bad")}if(!S.over)autoEvolve();if(S.ch===1&&!S.over)checkChapter();if(S.enc&&S.enc.raid&&!S.raid)S.enc=null;offerFac()}
 
 /* ───── 狀態 ───── */
 function renderStatus(){
@@ -490,12 +490,14 @@ function provUI(){
 function snoteSet(t,bad){$("snote").textContent=t;$("snote").style.color=bad?"var(--bad)":""}
 let newgArmed=false,newgTimer=null;
 function disarmNewg(){newgArmed=false;$("newg").textContent="重新開始";snoteSet("")}
-function closeSet(){disarmNewg();ls.s("or_key",EL.key.value.trim());ls.s("gm_key",EL.gkey.value.trim());ls.s("or_model",EL.model.value.trim());$("setsheet").classList.remove("on");refresh()}
+/* v5.10：欄位是空的就不蓋掉已經存的金鑰（避免不小心清掉）；要清掉金鑰請打「清除」 */
+function keepKey(k,el){const v=el.value.trim();if(v==="清除"){ls.d(k);el.value="";return}if(v)ls.s(k,v);else if(ls.g(k))el.value=ls.g(k)}
+function closeSet(){disarmNewg();keepKey("or_key",EL.key);keepKey("gm_key",EL.gkey);ls.s("or_model",EL.model.value.trim());$("setsheet").classList.remove("on");refresh()}
 function download(blob,name){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000)}
 function initSettings(){
   $("mseg").querySelectorAll("button").forEach(b=>b.onclick=()=>{MODE=b.dataset.m;ls.s("mowu_mode",MODE);modeUI()});
   $("pseg").querySelectorAll("button").forEach(b=>b.onclick=()=>{PROV=b.dataset.p;ls.s("mowu_prov",PROV);provUI()});
-  $("regem").onclick=async()=>{const b=$("regem");ls.s("gm_key",EL.gkey.value.trim());b.disabled=true;b.textContent="抓取中…";
+  $("regem").onclick=async()=>{const b=$("regem");keepKey("gm_key",EL.gkey);b.disabled=true;b.textContent="抓取中…";
     try{await gemModels(true)}catch(e){snoteSet("抓不到："+(e.message||e),1)}b.disabled=false;b.textContent="重新抓 Gemini 模型名單";provUI()};
   $("refree").onclick=async()=>{const b=$("refree");b.disabled=true;b.textContent="抓取中…";
     try{await cachedList("free",true);ls.s("mowu_bad","{}")}catch(e){snoteSet("抓不到："+(e.message||e),1)}b.disabled=false;b.textContent="重新抓免費模型名單";modeUI()};

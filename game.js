@@ -61,13 +61,16 @@ const bagMax=()=>8+(S.items.some(i=>i.n==="背包")?4:0);
 const bagFull=()=>S.items.length>=bagMax();
 /* 存在值滿了自動進化，多出來的帶到下一級；進化當下 HP、MP 回滿 */
 const gainExist=n=>{S.exist+=n;autoEvolve();return n};
-/* v5.9：自己的等級最多比主據點高 1 級；還沒有據點（第一章）停在 F。存在值滿了先存著，據點升級後再進化 */
-const lvCap=()=>S.ch>=2&&S.nest!=null?Math.min(6,nestIdx()+1):0;
+/* v5.10：玩家等級＝據點到過的最高等級（搬家、被攻破都不掉）；第一章還沒有據點＝F。
+   存在值只在同一級裡把 BP 推高；滿了就提示去升據點。 */
+const nestMax=()=>S.ch>=2?Math.max(0,...Object.keys((S.stats&&S.stats.nestDay)||{}).map(gIdx),nestIdx()):0;
+const lvCap=nestMax;
 function autoEvolve(){
-  while(S.lv!=="S"&&gIdx(S.lv)<lvCap()&&S.exist>=EXIST_MAX(S.lv)){S.exist-=EXIST_MAX(S.lv);S.lv=GRADES[gIdx(S.lv)+1];if(S.stats.lvDay[S.lv]==null)S.stats.lvDay[S.lv]=S.day;
-    S.hp=hpMax();S.mp=mpMax();S.capNote=0;log(`★ 進化！你現在是 ${S.lv} 級（BP ${bpOf()}），HP、MP 回滿。`,"good")}
-  if(S.lv!=="S"&&gIdx(S.lv)>=lvCap()&&S.exist>=EXIST_MAX(S.lv)){S.exist=EXIST_MAX(S.lv);
-    if(!S.capNote){S.capNote=1;log(S.ch<2?"存在值滿了，但你還沒有落腳的地方，進化不了。先蓋草棚（或占岩穴）、建立據點。":`存在值滿了，但你已經比據點（${S.nest}）高一級，進化不了。先把據點升到 ${GRADES[gIdx(S.lv)]} 級。`,"bad")}}
+  const t=nestMax();
+  while(gIdx(S.lv)<t){S.lv=GRADES[gIdx(S.lv)+1];if(S.stats.lvDay[S.lv]==null)S.stats.lvDay[S.lv]=S.day;
+    S.hp=hpMax();S.mp=mpMax();S.capNote=0;log(`★ 據點到了 ${S.lv} 級，你也跟著進化：現在是 ${S.lv} 級（BP ${bpOf()}），HP、MP 回滿。`,"good")}
+  if(S.exist>=EXIST_MAX(S.lv)){S.exist=EXIST_MAX(S.lv);
+    if(!S.capNote&&S.lv!=="S"){S.capNote=1;log(S.ch<2?"存在值滿了。先蓋草棚（或占岩穴）、建立據點，再提升據點等級，你才會變強。":`存在值滿了（BP ${bpOf()}，這一級的頂）。提升據點等級，你才會變強。`,"bad")}}
   if(S.lv==="S")S.exist=Math.min(S.exist,EXIST_MAX("S"));
 }
 
