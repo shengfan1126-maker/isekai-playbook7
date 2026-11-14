@@ -51,6 +51,7 @@ function artSources(){
   const L=[];
   S.skills.concat(itemSkills()).forEach(s=>L.push({n:s.n,k:"skill",tags:s.e.slice(),p:s.f?FORM_PRIM[s.f]||"傷害":(s.c.includes("感知")||s.e.includes("感知")&&s.c.includes("機動")?"破綻":CAT_PRIM[s.c[0]]||"傷害"),s,left:usesLeft(s)}));
   const w=weaponIt();if(w){const tg=/弓|投石/.test(w.n)?["切割","移動"]:/斧|錘/.test(w.n)?["切割","重量"]:["切割"];if(w.mg&&w.mg.t==="elem")tg.push(w.mg.v);L.push({n:w.n,k:"weapon",tags:uniq(tg),p:"傷害"})}
+  useItems().forEach(it=>L.push({n:it.n,k:"gear",tags:it.mg.use.tags.slice(),p:it.mg.use.p}));   /* v5.16：打造的用途物品也能拿來組合 */
   const P=placeOf();if(P&&P.e&&P.e.length)L.push({n:"周圍",k:"env",tags:P.e.slice(),p:"環境",label:`${P.n}的地形`});
   L.push({n:"自己",k:"self",tags:SELF_TAGS.slice(),p:"傷害",label:"你自己（徒手）"});
   MATS.filter(m=>S.mats[m]&&(ITEM_E[m]||[]).length).forEach(m=>L.push({n:m,k:"mat",tags:ITEM_E[m].slice(),p:"",left:S.mats[m]}));
@@ -103,7 +104,7 @@ function artCheck(steps,o){
 }
 /* 給大賢者看的清單 */
 function artListText(){
-  return artSources().map(x=>`${x.n}｜${{skill:"技能",weapon:"武器",env:"地形",self:"徒手",mat:"材料（用了會少一份）"}[x.k]}｜標籤：${x.tags.join("、")}｜本來用法：${x.p||"無"}${x.k==="skill"?`｜今天剩 ${x.left} 次`:""}${x.k==="mat"?`｜有 ${x.left} 份`:""}${x.k==="weapon"&&weakWeapon(weaponIt())?"｜比對手低，玩家沒提到就不要用它（用了會壞）":""}`).join("\n");
+  return artSources().map(x=>`${x.n}｜${{skill:"技能",weapon:"武器",gear:"魔法裝備",env:"地形",self:"徒手",mat:"材料（用了會少一份）"}[x.k]}｜標籤：${x.tags.join("、")}｜本來用法：${x.p||"無"}${x.k==="skill"?`｜今天剩 ${x.left} 次`:""}${x.k==="mat"?`｜有 ${x.left} 份`:""}${x.k==="weapon"&&weakWeapon(weaponIt())?"｜比對手低，玩家沒提到就不要用它（用了會壞）":""}`).join("\n");
 }
 
 /* ───── v5.3：招式 ─────

@@ -287,6 +287,25 @@ function sheetPartCraft(pi){const p=S.items[pi];if(!isPart(p))return;
   sheet(`<h3>用${esc(p.n)}做裝備（${p.lv}）</h3><div class="note">${PART_CRAFT_H} 小時，做出來的白字裝備等級＝${p.lv}。也可以直接打字「用${esc(p.part)}做匕首」，名字照你說的。</div><table>`+
     WHITE_BASES.map(b=>`<tr><td>${esc(p.src+p.part+BASE_WORD[b])}（${gearOf({n:b}).slot}${gearOf({n:b}).wt?"・"+gearOf({n:b}).wt:""}）</td><td><button data-pb="${b}">做</button></td></tr>`).join("")+`</table>`);
   $("sbody").querySelectorAll("[data-pb]").forEach(b=>b.onclick=()=>{const r=craftPart(pi,b.dataset.pb);if(r.err)toast=r.err;save();closeSheet()})}
+/* v5.16：鍛冶台 */
+let FGT="";   /* 特定打造：打的字 */
+function sheetForge(msg){
+  const lv=S.nest||"F",c=orderCost(lv),u=useLv(lv),mg=[];SLOTS.forEach(k=>{if(S.eq[k]&&S.eq[k].mg)mg.push({ref:"eq:"+k,it:S.eq[k]})});S.items.forEach((it,i)=>{if(it.mg&&it.slot)mg.push({ref:"i:"+i,it})});
+  const o=S.forgeOrder;
+  sheet(`<h3>鍛冶台（${lv}）</h3>
+  <h4>特定打造</h4><div class="note">說你想做什麼，例如「隱形皮甲」「吸血斧頭」「抗火頭盔」「加速靴」「看穿之眼戒指」。大賢者拆成 底子＋標籤＋用途，標籤做得到那個用途才做得出來。<br>做好的東西：做那種事時多 ${u.n} 條優勢${u.raid?"，升級戰、魔王戰也算":"（D 級起升級戰也算）"}${u.free?"，一天一次那件事不用付代價":""}；名字裡有「抗火、吸血、加速、飛行、守護、豐收、歸巢」這種字，還會多一個被動效果。全身的用途加成最多 +${USE_CAP}。<br>等級＝據點等級（${lv}），一件 ${FORGE_DAYS} 天，一次一件。材料：${costWord(c)}。</div>
+  ${o?`<p><b>正在打造「${esc(o.n)}」</b>（${o.lv}・${esc(useWord(o.use))}），還要 ${o.left} 天。</p>`:`<p><input id="fgt" maxlength="12" placeholder="想做什麼？" value="${esc(FGT)}" style="font:inherit;padding:6px;width:60%"> <button id="fgok">打造</button></p>`}
+  ${msg?`<p class="note">${esc(msg)}</p>`:""}
+  <h4>改變外形</h4><div class="note">魔法裝備換成別的樣子（長矛 → 弓、皮甲 → 斗篷），等級、效果不變，${RESHAPE_H} 小時。</div>`+
+  (mg.length?`<table>${mg.map(x=>`<tr><td>${esc(x.it.n)}（${x.it.lv}・${gearOf(x.it).slot}）</td><td><select data-rs="${x.ref}"><option value="">換成…</option>${WHITE_BASES.filter(b=>b!==(x.it.base||x.it.n)).map(b=>`<option value="${b}">${BASE_WORD[b]}（${gearOf({n:b}).slot}）</option>`).join("")}</select></td></tr>`).join("")}</table>`:`<p class="note">還沒有魔法裝備。</p>`)+
+  `<h4>組合</h4><div class="note">白字裝備＋魔核在這裡做只要 ${COMBINE_H_FORGE} 小時（背包頁的魔核按「組合」）。</div>`);
+  if($("fgok"))$("fgok").onclick=async()=>{FGT=$("fgt").value.trim();if(!FGT)return;
+    let f=parseForgeLocal(FGT),why="";
+    if((!f||forgeCheck(f))&&AI.on()){try{$("fgok").disabled=true;$("fgok").textContent="大賢者在想…";const a=await aiForge(FGT);if(a){if(!a.base&&f&&f.base)a.base=f.base;if(f&&f.x)a.x=f.x;f=a;why=a.why||""}}catch(e){why="AI 出錯："+e.message}}
+    if(!f&&!AI.on())return sheetForge("看不出要什麼效果。名字裡加上「隱形」「吸血」「抗火」「加速」「看穿」這種字，或在設定填 AI 金鑰讓大賢者幫你拆。");
+    const r=forgeOrder(f||{n:FGT});if(r.err)return sheetForge((why?why+"　":"")+r.err);FGT="";save();closeSheet()};
+  $("sbody").querySelectorAll("[data-rs]").forEach(sl=>sl.onchange=()=>{if(!sl.value)return;const r=reshape(sl.dataset.rs,sl.value);if(r.err)return sheetForge(r.err);save();closeSheet()});
+}
 /* v5.2：專心鍛鍊、專心實驗 */
 function sheetTrain(){
   const cs=S.items.map((it,i)=>({it,i})).filter(x=>isCore(x.it));
@@ -377,8 +396,8 @@ function sheetBag(){
   let h=`<h3>裝備</h3><div class="note">武器 +1；遠程再 +1；近戰打遠程的對手要多付 1 項才能接近；雙手近戰大成功少付 1 項。盾、衣服、頭減傷。比對手等級低的裝備用完就壞（不能修）。✦＝魔法物品（一個效果、一天 3 次）。</div><table>`+
     SLOTS.map(k=>{const it=S.eq[k];return `<tr><td>${k}</td><td>${it?esc(itemDesc(it)):'<span class="note">（空）</span>'}</td><td>${it&&!inFight?`<button data-uq="${k}" ${lock?"disabled":""}>卸下</button>`:""}</td></tr>`}).join("")+`</table>`;
   const fg=canForge();
-  h+=`<h3>背包 ${bagWord()}</h3>`+(fg===true?`<div class="note">鍛冶台：白字裝備＋魔核 ×${forgeCost()}（或魔晶 ×1）→ 魔法裝備（${S.lv} 級，效果隨機），${racialOwned("矮人")?Math.ceil(FORGE_HOURS/2):FORGE_HOURS} 小時。聚落專屬的效果做不出來。</div>`:`<div class="note">鍛造魔法裝備：${fg}。</div>`)+
-    `<table>`+(S.items.map((it,i)=>`<tr><td>${esc(itemDesc(it))}</td><td>${it.slot&&!inFight?`<button data-eq="${i}" ${lock?"disabled":""}>裝上</button>`:""}${it.k==="potion"?`<button data-dr="${i}" ${lock?"disabled":""}>喝</button>`:""}${isCore(it)&&!inFight?` <button data-cb="${i}" ${lock?"disabled":""}>組合</button> <button data-ct="${i}" ${lock?"disabled":""}>鍛鍊學會</button>${S.items.some((x,j)=>j!==i&&isCore(x)&&x.lv===it.lv&&it.lv!=="S")?` <button data-cm="${i}" ${lock?"disabled":""}>合成升級</button>`:""}`:""}${isPart(it)&&!inFight?` <button data-pc="${i}" ${lock?"disabled":""}>做成裝備</button>`:""}${fg===true&&it.slot&&!it.mg?` <button data-fg="${i}|0" ${lock||(S.mats.魔核||0)<forgeCost()?"disabled":""}>鍛造（魔核）</button>${S.mats.魔晶?` <button data-fg="${i}|1" ${lock?"disabled":""}>鍛造（魔晶）</button>`:""}`:""}</td></tr>`).join("")||"<tr><td>（空）</td></tr>")+`</table>`;
+  h+=`<h3>背包 ${bagWord()}</h3>`+(fg===true?`<p><button id="gofg" ${lock?"disabled":""}>鍛冶台（特定打造、改外形）</button>${S.forgeOrder?`　<span class="note">正在打造「${esc(S.forgeOrder.n)}」，還要 ${S.forgeOrder.left} 天</span>`:""}</p>`:`<div class="note">鍛冶台：${fg}。</div>`)+
+    `<table>`+(S.items.map((it,i)=>`<tr><td>${esc(itemDesc(it))}</td><td>${it.slot&&!inFight?`<button data-eq="${i}" ${lock?"disabled":""}>裝上</button>`:""}${it.k==="potion"?`<button data-dr="${i}" ${lock?"disabled":""}>喝</button>`:""}${isCore(it)&&!inFight?` <button data-cb="${i}" ${lock?"disabled":""}>組合</button> <button data-ct="${i}" ${lock?"disabled":""}>鍛鍊學會</button>${S.items.some((x,j)=>j!==i&&isCore(x)&&x.lv===it.lv&&it.lv!=="S")?` <button data-cm="${i}" ${lock?"disabled":""}>合成升級</button>`:""}`:""}${isPart(it)&&!inFight?` <button data-pc="${i}" ${lock?"disabled":""}>做成裝備</button>`:""}</td></tr>`).join("")||"<tr><td>（空）</td></tr>")+`</table>`;
   h+=foodHtml(lock||inFight);
   h+=`<h3>材料</h3><p class="chips">${MATS.filter(m=>S.mats[m]).map(m=>`<button class="chip" data-mat="${m}">${m}×${S.mats[m]}</button>`).join(" ")||"（空）"}</p><div class="note">點材料看能做什麼。</div><p>金幣：${S.gold}　語言：${S.langs.join("、")||"沒有"}</p>
   <p>看過的魔物技巧：${S.seen.map(x=>`${esc(x.n)}（${esc(x.from)}・${x.lv}${x.used?"・已偷學":""}）`).join("、")||"（無）"}</p>
@@ -395,7 +414,7 @@ function sheetBag(){
   bindFood(R);
   $("sbody").querySelectorAll("[data-mat]").forEach(b=>b.onclick=()=>sheetMat(b.dataset.mat));
   $("sbody").querySelectorAll("[data-dr]").forEach(b=>b.onclick=()=>{usePotion(+b.dataset.dr);closeSheet()});
-  $("sbody").querySelectorAll("[data-fg]").forEach(b=>b.onclick=()=>{const [i,c]=b.dataset.fg.split("|");const r=forgeMagic(+i,c==="1");if(r.err)toast=r.err;R()});
+  if($("gofg"))$("gofg").onclick=()=>sheetForge();
 }
 function sheetPotion(){
   const L=S.items.map((it,i)=>[it,i]).filter(([it])=>it.k==="potion");

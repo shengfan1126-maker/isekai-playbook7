@@ -105,3 +105,84 @@ function localPartCraft(t){
   if(i<0)return {err:`背包裡沒有「${m[1]}」這種部位`};
   return craftPart(i,m[2]);
 }
+
+/* ───── v5.16：鍛冶台（用戶 08:52、09:48、09:56）─────
+   ①省時間：組合 1 小時（上面 combineCore）；每 4 天送一件照舊。
+   ②改變外形：魔法裝備換底子（長矛 → 弓），等級、效果不變。
+   ③特定打造：玩家說要做什麼（「隱形皮甲」「吸血斧頭」「抗火頭盔」），拆成 底子＋標籤＋用途（＋看字眼帶一個被動效果），
+     程式檢查標籤做不做得到那個用途；等級＝據點等級，一件 7 天，一次一件。
+   用途 +N：做那種事時多 N 條優勢（F～E +1；D～C +1、升級戰也算；B～A +2；S +2、一天一次那件事不用付代價）。
+   全身的用途加成最多 +2（S 的免代價另算）。物品比對手低：用途、被動都不生效（不是主動選的，所以也不會壞）。 */
+const FORGE_DAYS=7,RESHAPE_H=2,USE_CAP=2;
+const USE_KW=[
+  [/隱形|隱身|潛行|無聲|消音|暗影|幻影|匿蹤/,{p:"隱匿",tags:["暗","包覆"]}],
+  [/看穿|鷹眼|洞察|真視|透視|弱點/,{p:"破綻",tags:["感知","光"]}],
+  [/束縛|鎖|纏|捕/,{p:"控制",k:"束縛",tags:["包覆"]}],
+  [/閃光|致盲|眩目/,{p:"控制",k:"致盲",tags:["光"]}],
+  [/恐懼|威嚇|咆哮|震懾/,{p:"控制",k:"威嚇",tags:["聲音"]}],
+  [/毒/,{p:"控制",k:"中毒",tags:["暗"]}],
+  [/擊退|震盪|衝擊/,{p:"控制",k:"擊退",tags:["重量"]}],
+  [/加速|疾風|迅捷|飛毛|輕盈|疾行|神速/,{p:"位移",tags:["風","移動"],x:{t:"move"}}],
+  [/飛行|浮空|翅膀|飛翔/,{p:"位移",tags:["風"],x:{t:"fly"}}],
+  [/吸血|嗜血/,{p:"傷害",tags:["暗"],x:{t:"regen"}}],
+  [/豐收|採集|園丁/,{p:"環境",tags:["木"],x:{t:"gather"}}],
+  [/歸巢|傳送|回家/,{p:"位移",tags:["魔力"],x:{t:"tele"}}],
+  [/守護|堅固|鐵壁|不破|護身/,{p:"防護",tags:["硬化"],x:{t:"defend"}}],
+  [/火焰|烈焰|燃燒|炎|火/,{p:"傷害",tags:["火"]}],[/冰|霜|寒|水/,{p:"傷害",tags:["水"]}],[/雷|電|風/,{p:"傷害",tags:["風"]}],
+  [/大地|岩|石/,{p:"防護",tags:["土"]}],[/聖|光|曙/,{p:"傷害",tags:["光"]}],[/暗|影|夜/,{p:"隱匿",tags:["暗"]}],[/重|巨|破/,{p:"傷害",tags:["重量"]}],[/利|銳|斬|裂/,{p:"傷害",tags:["切割"]}]];
+const ANTI_RE=/(?:抗|避|防|耐)(火|水|土|風|木|光|暗|冰|雷|毒)/;
+const useLv=lv=>{const g=gIdx(lv);return g>=6?{n:2,raid:1,free:1}:g>=4?{n:2,raid:1}:g>=2?{n:1,raid:1}:{n:1}};
+const useWord=u=>`${u.p}${u.k?"・"+u.k:""}`;
+/* 本地拆解：看字眼。拆不出來回傳 null（再請大賢者） */
+function parseForgeLocal(text){
+  const t=String(text||"").trim().slice(0,12);if(!t)return null;
+  const kw=BASE_KW.find(([re])=>re.test(t));const base=kw?kw[1]:null;
+  let use=null,x=null;const anti=t.match(ANTI_RE);
+  if(anti){const v=normTag(anti[1]);use={p:"防護",tags:uniq([v,"包覆"])};x={t:"resist",v}}
+  else{const k=USE_KW.find(([re])=>re.test(t));if(k){use={p:k[1].p,k:k[1].k||"",tags:k[1].tags.slice()};x=k[1].x?Object.assign({},k[1].x):null}}
+  if(!use)return null;return {n:t,base,use,x};
+}
+/* 檢查：標籤做不做得到那個用途（組合解析器那張表） */
+function forgeCheck(f){
+  if(!f||!f.use)return "看不出要什麼效果。名字裡加上「隱形」「吸血」「抗火」「加速」「看穿」這種字試試";
+  if(!f.base||!GEAR[f.base])return "看不出是哪種裝備。名字裡加上「劍、斧、矛、弓、盾、盔、甲、靴、項鍊、戒指」其中一個";
+  const need=f.use.p==="控制"?ART_CTRL[f.use.k]||[]:ART_PRIM[f.use.p]||[];
+  if(!need.length)return `「${useWord(f.use)}」不是能打造的用途`;
+  if(!f.use.tags.some(t=>need.includes(t)))return `${useWord(f.use)}要有${need.join("、")}其中之一，「${f.use.tags.join("、")}」做不到`;
+  return null;
+}
+const orderCost=lv=>{const g=gIdx(lv);const c={礦石:1+g};if(g>=1)c.魔核=g;if(g>=3)c.魔晶=g-2;return c};
+function forgeOrder(f){
+  const e=busyErr();if(e)return {err:e};if(!atForge())return {err:"要在據點，而且有鍛冶台"};if(S.forgeOrder)return {err:`鍛冶台正在打造${S.forgeOrder.n}（還要 ${S.forgeOrder.left} 天）`};
+  const bad=forgeCheck(f);if(bad)return {err:bad};const lv=S.nest||"F",c=orderCost(lv),miss=lacks(c);if(miss.length)return {err:`材料不夠：還差 ${miss.join("、")}`};
+  Object.entries(c).forEach(([m,n])=>S.mats[m]-=n);
+  S.forgeOrder={n:f.n,base:f.base,lv,use:f.use,x:f.x||null,left:FORGE_DAYS};count(S.stats.actions,"forgeOrder");
+  log(`[鍛冶台] 開始打造「${f.n}」（${lv}・${gearOf({n:f.base}).slot}・${useWord(f.use)} +${useLv(lv).n}${f.x?"・"+fxName(f.x):""}），${FORGE_DAYS} 天後做好。材料：${costWord(c)}。`,"act");advance(1);return {ok:true};
+}
+const fxName=x=>x.t==="resist"?`避${x.v}`:FX_WORD[x.t]||x.t;
+/* 每天：打造進度（facDay 呼叫） */
+function forgeDay(){const o=S.forgeOrder;if(!o||!(S.fac||[]).some(f=>f.n==="鍛冶台"))return "";if(--o.left>0)return "";
+  const it=mkGear(o.base,o.lv);it.n=o.n;it.mg={t:o.x?o.x.t:"use",use:o.use};if(o.x&&o.x.v)it.mg.v=o.x.v;it.mg.d=mgDesc(it.mg);it.use=0;S.forgeOrder=null;S.items.push(it);
+  return `鍛冶台 ✦${it.n}（${it.lv}）做好了`}
+/* 改變外形：等級、效果不變，換底子 */
+function reshape(ref,base){
+  const e=busyErr();if(e)return {err:e};if(!atForge())return {err:"要在據點，而且有鍛冶台"};const g=gearRef(ref),it=g.it;
+  if(!it||!it.mg)return {err:"要一件魔法裝備"};if(!GEAR[base]||!BASE_WORD[base])return {err:"不能換成這個"};if((it.base||it.n)===base)return {err:"已經是這個樣子"};
+  if(g.eq){S.eq[g.eq]=null;S.items.push(it)}
+  const old=it.n,ob=it.base;it.base=base;const gd=GEAR[base];it.slot=gd.slot;it.wt=gd.wt||null;
+  if(ob&&it.n.includes(ob))it.n=it.n.replace(ob,base);else if(BASE_WORD[ob]&&it.n.includes(BASE_WORD[ob]))it.n=it.n.replace(BASE_WORD[ob],BASE_WORD[base]);
+  count(S.stats.actions,"reshape");log(`[鍛冶台] ${old} 改成 ${it.n}（${gd.slot}${gd.wt?"・"+gd.wt:""}），等級、效果不變。（放回背包，${RESHAPE_H} 小時）`,"act");advance(RESHAPE_H);return {ok:true,it};
+}
+/* 身上（等級夠）的用途物品 */
+function useItems(){const fi=foeIdx();return eqItems().filter(it=>it.mg&&it.mg.use&&(fi<0||gIdx(it.lv)>=Math.min(6,fi)))}
+/* 這個行動對到哪些用途（打字組合：看成立的步驟） */
+function actUses(q,act){
+  if(q.art)return q.art.res.filter(r=>r.ok).map(r=>r.prim);
+  return {retreat:["隱匿","位移"],explore:["隱匿"],fight:["傷害","破綻","控制"],combo:["傷害","破綻","控制"],gather:["環境"],shelter:["環境"],craft:["環境"]}[act]||[];
+}
+function useBonus(q,act){
+  const want=actUses(q,act);if(!want.length)return 0;let n=0,free=null;const names=[];
+  useItems().forEach(it=>{const u=it.mg.use,L=useLv(it.lv);if(!want.includes(u.p))return;if(q.raid&&!L.raid)return;n+=L.n;names.push(`${it.n}（${useWord(u)}）+${L.n}`);if(L.free&&it.free!==S.day)free=it});
+  const v=Math.min(USE_CAP,n);if(v)q.notes.push(names.join("、")+(n>USE_CAP?`（全身最多 +${USE_CAP}）`:""));
+  if(free)q.useFree=free;return v;
+}

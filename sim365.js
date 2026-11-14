@@ -5,7 +5,7 @@
 const fs=require("fs"),vm=require("vm");
 const ctx=vm.createContext({console,Math});
 vm.runInContext(["data.js","game.js","world.js","combo.js","gear.js"].map(f=>fs.readFileSync(__dirname+"/"+f,"utf8")).join("\n")+
-  "\nthis.G={newGame,planOf,exec,sleep,startCh2,failChoice,get S(){return S},hpMax,placeOf,gIdx,canExchange,drawChoices,exchange,RECIPES,MOVES,PLACES,canBuild,build,canEvolve,evolve,usePotion,bpOf,hasItem,MP_MAX,mpMax,makeCure,useCure,pickFac,facPut,startBoss,donate,donateItem,FAC,GRADES,facBlock,hasWeapon,startSpecial,specialHere,baseable,payables,equip,canEquip,travel,homeAt,useEscape,choosePick,takeLoot,skipLoot,combineCore,whiteRefs,trainCore,mergeCores};",ctx);
+  "\nthis.G={newGame,planOf,exec,sleep,startCh2,failChoice,get S(){return S},hpMax,placeOf,gIdx,canExchange,drawChoices,exchange,RECIPES,MOVES,PLACES,canBuild,build,canEvolve,evolve,usePotion,bpOf,hasItem,MP_MAX,mpMax,makeCure,useCure,pickFac,facPut,startBoss,donate,donateItem,FAC,GRADES,facBlock,hasWeapon,startSpecial,specialHere,baseable,payables,equip,canEquip,travel,homeAt,useEscape,choosePick,takeLoot,skipLoot,combineCore,whiteRefs,trainCore,mergeCores,forgeOrder,parseForgeLocal};",ctx);
 const G=ctx.G;
 if(process.env.DIS)vm.runInContext(`Object.assign(ARMY_DIS,${process.env.DIS})`,ctx);
 const SHESH=process.argv.includes("shesh"),DBG=process.argv.includes("dbg");
@@ -91,6 +91,7 @@ function play(idx){
     if(S.pick&&!S.enc){G.choosePick(0);if(S.pick)S.pick=null;continue}   /* 三選一：選第一個 */
     if(S.lootQ&&S.lootQ.length&&!S.enc){const L=S.lootQ[0];const ci=L.ch.findIndex(o=>o.it&&o.it.k==="core");G.takeLoot(ci>=0?ci:0);if(S.lootQ[0]===L)G.skipLoot();W.loot=(W.loot||0)+1;continue}
     if(!S.enc&&!S.raid&&!S.pending&&S.hour<=18&&combineStep())continue;
+    if(!S.enc&&!S.raid&&!S.pending&&!S.forgeOrder&&S.at===S.base&&S.hour<=18&&(S.fac||[]).some(f=>f.n==="鍛冶台")){const n=["守護皮甲","隱形斗篷","看穿之眼戒指","加速靴","抗火頭盔","吸血斧頭"][Math.floor(Math.random()*6)];if(G.forgeOrder(G.parseForgeLocal(n)).ok){W.forge=(W.forge||0)+1;continue}}
     if(S.raid&&S.enc){raidBattle();continue}
     if(S.enc){const d=G.gIdx(S.enc.lv)-G.gIdx(S.lv);const s=bestFight();let q=G.planOf({act:"fight",weapon:false,skills:s&&S.mp>=1?[s.n]:[]});if(!q.weakWeapon||q.need>maxPay(q))q=G.planOf({act:"fight",weapon:true,skills:s&&S.mp>=1?[s.n]:[]});
       if(d<=1&&q.need<=maxPay(q)&&S.hp>q.unit*2)G.exec(q,pay(q,q.need));else if(S.items.some(i=>i.k==="escape")){W.powder=(W.powder||0)+1;G.useEscape()}else act({act:"retreat"},null);continue}

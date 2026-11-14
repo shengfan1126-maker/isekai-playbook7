@@ -50,7 +50,7 @@ function loseItem(it){
 }
 function itemDesc(it){
   const g=gearOf(it);let s=`${it.n}（${it.lv}${g?`・${g.slot}${g.wt?"・"+g.wt:""}`:""}）`;
-  if(it.mg)s+=`　✦${mgDesc(it.mg)}　（魔力今天剩 ${mgUses(it)}/3）`;
+  if(it.mg)s+=`　✦${mgDesc(it.mg)}${it.mg.use?`（${(u=>`+${u.n}${u.raid?"，升級戰也算":""}${u.free?"，一天一次免代價":""}`)(useLv(it.lv))}）`:""}　（魔力今天剩 ${mgUses(it)}/3）`;
   else if(it.k==="potion"&&POTIONS[it.n])s+="　"+potionWord(it.n);
   return s;
 }
@@ -62,6 +62,8 @@ function pickW(list){const t=list.reduce((a,x)=>a+(x.w||1),0);let r=rand()*t;for
 function mgDesc(mg){
   if(!mg)return "";
   if(mg.race&&RACE_ITEM[mg.race])return RACE_ITEM[mg.race].d;
+  if(mg.t==="use")return `用途：${useWord(mg.use)}`;
+  if(mg.use)return `${mgDesc(Object.assign({},mg,{use:null}))}；用途：${useWord(mg.use)}`;
   if(mg.t==="skill")return `寄技：附帶技能【${mg.v.n}】，一天 3 次，不扣 MP`;
   if(mg.t==="elem")return `${ELEM_NM[mg.v]||""}紋：攻擊帶「${mg.v}」，可以觸發相剋`;
   if(mg.t==="resist")return `避${mg.v}：被${mg.v}屬性的對手打，傷害減半`;
@@ -148,7 +150,7 @@ function weakWeapon(w,q){const fi=Math.min(6,q&&q.foe!=null?q.foe:foeIdx());retu
 function uniqOn(t){return eqItems().find(it=>it.mg&&it.mg.t===t&&it.mg.race&&gIdx(it.lv)>=Math.min(6,foeIdx()))}
 /* 輸一場的傷害倍率：盾 −20%、衣服 −20%、頭 −10%；屬性抗性再減半 */
 function dmgMult(){
-  let m=1-(S.eq.副手&&gearOf(S.eq.副手).wt==="盾"?.2:0)-(S.eq.衣服?.2:0)-(S.eq.頭?.1:0)-.2*mgOn("defend").length;
+  let m=1-(S.eq.副手&&gearOf(S.eq.副手).wt==="盾"?.2:0)-(S.eq.衣服?.2:0)-(S.eq.頭?.1:0)-.2*mgOn("defend").length-.2*useItems().filter(it=>it.mg.use.p==="防護").length;   /* v5.16：防護用途也減傷 */
   const fe=foeEss().concat(foeAtk()||[]);if(mgOn("resist").some(it=>fe.includes(it.mg.v)))m*=.5;   /* v5.14：對手的攻擊性質也算 */
   return Math.max(.3,m);
 }
@@ -293,16 +295,8 @@ const tradeRaces=()=>Object.keys(RACES).filter(tradeRel);
 function mkUnique(race){const u=RACE_ITEM[race];const it=mkGear(u.base,GRADES[Math.max(pg(),nestIdx(),2)]);it.n=u.n;it.mg={t:u.t,race,d:u.d};it.use=0;return it}
 
 /* ───── 鍛造：白字裝備＋魔核 (2＋等級) 或魔晶 1 → 魔法裝備。要在據點、有鍛冶台 ───── */
-const forgeCost=()=>2+pg();
 function canForge(){if(!S.base||S.at!==S.base)return "要在據點";if(!(S.fac||[]).some(f=>f.n==="鍛冶台"))return "據點要有鍛冶台";if(S.enc||S.raid)return "正在打";return true}
-function forgeMagic(i,useCrystal){
-  const ok=canForge();if(ok!==true)return {err:ok};const it=S.items[i];if(!it||!it.slot||it.mg)return {err:"要一件白字裝備"};
-  if(useCrystal){if((S.mats.魔晶||0)<1)return {err:"沒有魔晶"};S.mats.魔晶--}
-  else{const c=forgeCost();if((S.mats.魔核||0)<c)return {err:`要魔核 ×${c}`};S.mats.魔核-=c}
-  const m=genMagic(S.lv,it.base||it.n);S.items[i]=m;
-  const h=racialOwned("矮人")?Math.ceil(FORGE_HOURS/2):FORGE_HOURS;
-  log(`你在鍛冶台把${it.n}打成了${m.n}（${m.lv}）：${mgDesc(m.mg)}。${h<FORGE_HOURS?"（矮人符文，快一半）":""}`,"good");advance(h);return {ok:true};
-}
+/* v5.16：舊的「白字＋魔核 → 隨機效果」鍛造拿掉（魔核認不出來、沒有差異化），改成 gear.js 的 X魔核組合、特定打造 */
 
 /* ───── 地城、迷宮、敵對據點：一層（一次）打一場 ───── */
 const CONSTRUCTS=[{n:"機關兵",e:["土","硬化"]},{n:"石像守衛",e:["土","硬化"]},{n:"陷阱走廊",e:["硬化"]},{n:"魔像",e:["土","硬化"]}];

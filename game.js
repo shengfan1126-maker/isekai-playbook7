@@ -189,6 +189,7 @@ function planOf(it){
     if(S.raid&&S.raid.i<watchN()){net+=1;q.notes.push("哨塔先看到 +1")}}
   if(S.enc&&["fight","combo"].includes(act))q.foe=S.enc.king?7:gIdx(S.enc.lv);
   net+=gearBonus(q,act,q.art?q.art.skills:q.useSkill?[q.useSkill]:sks);
+  if(!["move","rest","hunt","sleep"].includes(act))net+=useBonus(q,act);   /* v5.16：鍛冶台打造的用途物品 */
   if(q.art){q.mand.mp=q.art.mp;
     if(q.art.cut){net+=q.art.cut;q.notes.push(`新用法 ${q.art.novel} 步${q.art.novel>q.art.cut?`（放進 ${q.art.nSrc} 樣東西，最多抵 ${q.art.nSrc}）`:""} +${q.art.cut}`)}
     else q.notes.push("組合裡沒有新用法（照本來的用法出手）");}
@@ -202,6 +203,7 @@ function planOf(it){
   if(judged&&B.fight&&S.enc&&["fight","retreat","combo"].includes(act)&&q.need>0){q.need--;q.bigAt=q.need+1;q.notes.push("睡在魔晶館：第一場戰鬥少付 1 項");q.useFight=1}
   if(judged&&B.all&&q.need>0){q.need--;q.bigAt=q.need+1;q.notes.push("睡在魔晶殿：今天每件事少付 1 項")}
   if(q.luck&&q.need>0){q.need--;q.bigAt=q.need+1;q.notes.push(`${q.luck.n}：好運，少付 1 項`)}else q.luck=null;
+  if(q.useFree&&q.need>0){q.need=0;q.bigAt=1;q.notes.push(`${q.useFree.n}：今天第一次，這件事不用付代價`)}else q.useFree=null;
   if(q.smash&&q.need>=1){q.bigAt=q.need;q.notes.push("雙手破壞力：大成功少付 1 項")}
   q.unit=hpUnit(q.key);
   const mpLeft=S.mp-q.mand.mp;
@@ -253,6 +255,7 @@ function exec(q,p){
   if(R)R(q,out);
   if(q.foe!=null)afterFight(q,out);
   if(q.luck&&q.judge)q.luck.use=(q.luck.use||0)+1;
+  if(q.useFree&&q.judge)q.useFree.free=S.day;
   if(S.hp<=0&&!S.over){die(out,"你倒下了，再也沒有起來。");}
   const T=ACT_NAME[q.act]||q.act;
   const resWord={fail:"失敗",ok:"成功",big:"大成功"}[out.res]||"";
@@ -693,6 +696,7 @@ function facDay(){
       else{openPick("修練場",[f.s],f.s.e.slice());out.push(`修練場 想通了一件事（三選一）`)}}}
     else if(f.n==="鍛冶台"){if(++f.t>=(rc?2:m?3:4)){f.t=0;out.push(`鍛冶台 ${facItem(genMagic(GRADES[Math.max(0,nestIdx())]))}`)}}
     else if(f.n==="藥草園"){if(++f.t>=(m?3:4)){f.t=0;f.k=f.k==="藍藥水"?"紅藥水":"藍藥水";out.push(`藥草園 ${facItem(mkItem(f.k,"potion"))}`);if(rc)out.push(`藥草園 ${facItem(mkItem("紫藥水","potion"))}`)}}});
+  {const fo=forgeDay();if(fo)out.push(fo)}
   return out.length?"據點產出："+out.join("、")+"。":"";
 }
 /* 升級戰：一連串的戰鬥。輸超過上限＝據點被攻破；中途逃走＝放棄據點 */
