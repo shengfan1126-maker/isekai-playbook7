@@ -267,8 +267,8 @@ if(typeof window!=="undefined"&&window.addEventListener)window.addEventListener(
   if($("setsheet")&&$("setsheet").classList.contains("on")){closeSet(true);hit=true}
   if(hit)refresh()});
 function sheetSkills(){
-  const row=(s,i,where)=>`<tr><td><input type="checkbox" class="fk" value="${i}" ${where==="store"?"disabled":""}></td><td><b>${esc(s.n)}</b> ${s.lv}<br><span class="note">${s.c.join("・")}｜${s.e.join("・")}｜用了 ${s.used} 次｜今天剩 ${usesLeft(s)}</span></td><td><button data-sw="${where}|${i}">${where==="skills"?"→倉庫":"→技能表"}</button><br><button data-dn="${where}|${i}">捐 +${skillPts(s)}點</button>${canSellSkill()?` <button data-sl="${where}|${i}">賣 +${skillGold(s)}金</button>`:""} <button data-fo="${where}|${i}">忘掉</button></td></tr>`;
-  sheet(`<h3>技能表 ${S.skills.length}/${SKILL_SLOTS}</h3><div class="note">每個技能一天 3 次。交換一次花 1 小時。勾 3 個同大類、同階的技能可以整合成高一階（4 小時）。技能滿了：整合、捐掉（據點點數，隨時）、賣掉（金幣，要在村子或有商人來的 D 級以上據點），或忘掉。</div>
+  const row=(s,i,where)=>`<tr><td><input type="checkbox" class="fk" value="${where}|${i}"></td><td><b>${esc(s.n)}</b> ${s.lv}<br><span class="note">${s.c.join("・")}｜${s.e.join("・")}｜用了 ${s.used} 次｜今天剩 ${usesLeft(s)}</span></td><td><button data-sw="${where}|${i}">${where==="skills"?"→倉庫":"→技能表"}</button><br><button data-dn="${where}|${i}">捐 +${skillPts(s)}點</button>${canSellSkill()?` <button data-sl="${where}|${i}">賣 +${skillGold(s)}金</button>`:""} <button data-fo="${where}|${i}">忘掉</button></td></tr>`;
+  sheet(`<h3>技能表 ${S.skills.length}/${SKILL_SLOTS}</h3><div class="note">每個技能一天 3 次。交換一次花 1 小時。勾 3 個同大類、同階的技能（技能表、倉庫都可以勾）可以整合成高一階（4 小時）。技能滿了：整合、捐掉（據點點數，隨時）、賣掉（金幣，要在村子或有商人來的 D 級以上據點），或忘掉。</div>
   <table>${S.skills.map((s,i)=>row(s,i,"skills")).join("")}</table><p><button id="fz">整合勾選的 3 個</button></p>
   <h3>倉庫 ${S.store.length}/${STORE_MAX[S.lv]}</h3><table>${S.store.map((s,i)=>row(s,i,"store")).join("")||"<tr><td>（空）</td></tr>"}</table>`);
   const two=(b,f)=>{const [w,i]=b.dataset[f].split("|");return [w,+i]};
@@ -276,7 +276,7 @@ function sheetSkills(){
   $("sbody").querySelectorAll("[data-sl]").forEach(b=>b.onclick=()=>{const r=sellSkill(...two(b,"sl"));if(r.err)toast=r.err;save();sheetSkills()});
   $("sbody").querySelectorAll("[data-fo]").forEach(b=>{let armed=false;b.onclick=()=>{if(!armed){armed=true;b.textContent="再按一次確定忘掉";return}forgetSkill(...two(b,"fo"));save();sheetSkills()}});
   $("sbody").querySelectorAll("[data-sw]").forEach(b=>b.onclick=()=>{const [w,i]=b.dataset.sw.split("|");const r=swapSkill(w,+i);if(r&&r.err)toast=r.err;save();sheetSkills()});
-  $("fz").onclick=()=>{const ids=[...document.querySelectorAll(".fk:checked")].map(x=>+x.value);const r=fuse(ids);if(r.err){toast=r.err;closeSheet()}else{save();sheetSkills()}};
+  $("fz").onclick=()=>{const ids=[...$("sbody").querySelectorAll(".fk:checked")].map(x=>x.value);const r=fuse(ids);if(r.err){toast=r.err;closeSheet()}else{save();sheetSkills()}};
 }
 /* v5.15：魔核組合、部位做裝備 */
 function sheetCombine(ci){const c=S.items[ci];if(!isCore(c))return;const L=whiteRefs();

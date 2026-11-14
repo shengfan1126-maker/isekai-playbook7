@@ -460,8 +460,9 @@ function exchange(cat,choice){
   return where;
 }
 /* 整合：同大類、同階 3 個 → 高一階 1 個 */
-function fuse(idx){
-  const a=idx.map(i=>S.skills[i]);
+function fuse(idx){   /* v5.20：idx 可以是技能表的編號，或 "skills|i"、"store|i"（倉庫也能勾） */
+  const ref=x=>{const [w,i]=String(x).includes("|")?String(x).split("|"):["skills",x];return (w==="store"?S.store:S.skills)[+i]};
+  const a=idx.map(ref);
   if(a.length!==3||a.some(x=>!x))return {err:"要選 3 個"};
   const cat=CATS.concat(["天生"]).find(c=>a.every(s=>s.c.includes(c)));
   if(!cat)return {err:"要同大類"};
@@ -469,7 +470,8 @@ function fuse(idx){
   const lv=GRADES[Math.min(6,gIdx(a[0].lv)+1)];
   let n=FUSED_NAME[cat],k=2;while(owned(n))n=FUSED_NAME[cat]+"・"+(k++);
   const ns={n,e:uniq(a.flatMap(s=>s.e)).slice(0,3),c:[cat],d:`由${a.map(s=>s.n).join("、")}整合而成。`};
-  S.skills=S.skills.filter((_,i)=>!idx.includes(i));S.skills.push(mkSkill(ns,lv));
+  S.skills=S.skills.filter(s=>!a.includes(s));S.store=S.store.filter(s=>!a.includes(s));
+  if(S.skills.length<SKILL_SLOTS)S.skills.push(mkSkill(ns,lv));else S.store.push(mkSkill(ns,lv));
   count(S.stats.actions,"fuse");log(`整合：${a.map(s=>s.n).join("＋")} → 【${n}】（${lv}）`,"good");advance(HOURS.fuse);
   return {ok:true,n};
 }
