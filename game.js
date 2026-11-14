@@ -145,10 +145,8 @@ function applyEffect(eff,out){
 function startEncounter(out,amb){
   const en=rollPlaceEnemy();if(amb)en.amb=1;S.enc=en;S.stats.enc++;
   const msg=`${amb?"突襲！":""}遭遇：${en.n}（${en.lv} 級${en.e.length?"・"+en.e.join(""):""}${en.r?"・遠程":""}）。`;out.lines.push(msg);log(msg,"bad");
-  if(!S.seen.some(x=>x.n===en.t.n)){
-    S.seen.push({n:en.t.n,e:en.t.e.slice(),part:en.t.part,from:en.n,lv:en.lv,used:false});
-    const s=`你看見牠使出「${en.t.n}」。（記下來了，可以拿來組合偷學）`;out.lines.push(s);log(s);
-  }
+  /* v5.19：不再記「看過的魔物技巧」（偷學改成拆解拿魔核） */
+
 }
 
 /* ───── 判定 ───── */

@@ -8,7 +8,7 @@ let busy=false;      // 等 AI 回答中
 
 function save(){ls.s(SAVE_KEY,JSON.stringify(S))}
 function load(){try{const t=ls.g(SAVE_KEY);if(t){S=JSON.parse(t);return S&&S.ver===VER}}catch(e){}return false}
-function heal(){S.store=S.store||[];S.frags=S.frags||[];S.seen=S.seen||[];S.scars=S.scars||[];S.items=S.items||[];S.mats=S.mats||{};worldFix();
+function heal(){S.store=S.store||[];S.frags=S.frags||[];S.seen=[];   /* v5.19：偷學拿掉 */S.scars=S.scars||[];S.items=S.items||[];S.mats=S.mats||{};worldFix();
   S.scars=S.scars.map(x=>OLD_SCAR[x]||x);S.pts=S.pts||0;S.fac=S.fac||[];S.facPick=S.facPick||null;S.raid=S.raid||null;
   if(S.ch>=2&&!S.bases){S.bases=[];   /* 舊存檔：從紀錄找出當過據點的地方 */
     S.log.forEach(l=>{const m=l.t.match(/你在(.+?)建立了 F 級據點/)||l.t.match(/你把據點搬到(.+?)[。，]/);if(m&&!S.bases.includes(m[1]))S.bases.push(m[1])});
@@ -121,7 +121,6 @@ function renderPanel(){
     f+=`<div class="lbl">技能（最多 3 個，MP＝技能數；✦魔法物品附帶的不扣 MP）</div><div class="chips">`+S.skills.concat(itemSkills()).map((s,i)=>`<label class="chip"><input type="checkbox" class="dsk" value="${esc(s.n)}" ${it.skills.includes(s.n)?"checked":""} ${usesLeft(s)<1?"disabled":""}>${s.fromItem?"✦":""}${esc(s.n)}<small>${s.lv}・${s.e.join("")}・剩${usesLeft(s)}${lowItem(s)?"・比對手低，用了會壞":""}</small></label>`).join("")+`</div>`;
     const objs=[["none|","不對誰（只疊技能）"],["place|"+S.at,`地點：${S.at}（${placeOf().e.join("・")}）`]]
       .concat(S.enc?[["enemy|"+S.enc.n,`眼前的${S.enc.n}`]]:[])
-      .concat(S.seen.map(x=>["seen|"+x.n,`偷學：${x.n}（${x.from}${x.used?"，學過了":""}）`]))
       .concat(S.items.concat(SLOTS.map(k=>S.eq[k]).filter(Boolean)).map(i=>["item|"+i.n,`物品：${i.n}`])).concat(MATS.filter(m=>S.mats[m]).map(m=>["item|"+m,`材料：${m}`]));
     f+=`<label class="ck">對象 ${sel("dob",objs,it.obj.t+"|"+(it.obj.n||""))}</label>`;
     f+=`<label class="ck">手法 ${sel("dmv",[["","（選一個）"]].concat(MOVES.map(m=>[m.n,`${m.n}（${m.f}）`])),it.move)}</label>`;
@@ -401,7 +400,6 @@ function sheetBag(){
     `<table>`+(S.items.map((it,i)=>`<tr><td>${esc(itemDesc(it))}</td><td>${it.slot&&!inFight?`<button data-eq="${i}" ${lock?"disabled":""}>裝上</button>`:""}${it.k==="potion"?`<button data-dr="${i}" ${lock?"disabled":""}>喝</button>`:""}${isCore(it)&&!inFight?` <button data-cb="${i}" ${lock?"disabled":""}>組合</button> <button data-ct="${i}" ${lock?"disabled":""}>鍛鍊學會</button>${S.items.some((x,j)=>j!==i&&isCore(x)&&x.lv===it.lv&&it.lv!=="S")?` <button data-cm="${i}" ${lock?"disabled":""}>合成升級</button>`:""}`:""}${isPart(it)&&!inFight?` <button data-pc="${i}" ${lock?"disabled":""}>做成裝備</button>`:""}</td></tr>`).join("")||"<tr><td>（空）</td></tr>")+`</table>`;
   h+=foodHtml(lock||inFight);
   h+=`<h3>材料</h3><p class="chips">${MATS.filter(m=>S.mats[m]).map(m=>`<button class="chip" data-mat="${m}">${m}×${S.mats[m]}</button>`).join(" ")||"（空）"}</p><div class="note">點材料看能做什麼。</div><p>金幣：${S.gold}　語言：${S.langs.join("、")||"沒有"}</p>
-  <p>看過的魔物技巧：${S.seen.map(x=>`${esc(x.n)}（${esc(x.from)}・${x.lv}${x.used?"・已偷學":""}）`).join("、")||"（無）"}</p>
   <p>已知地點：${S.places.map(n=>{const p=placeOf(n);return `${n}（${KIND_WORD[p.kind]?KIND_WORD[p.kind]+"・":""}${p.e.join("・")}${p.water?"・有水":""}${p.cave?"・岩穴":""}${p.kind==="hostile"&&S.cleared.includes(n)?"・已打下":""}）`}).join("、")}</p>
   <div class="note">相剋：水剋火、火剋木、木剋土、土剋風、風剋水；光暗互剋；切割剋包覆、重量剋硬化。剋到對手多 1 條優勢。</div>`;
   sheet(h);
@@ -451,7 +449,7 @@ function sheetRecipes(){
 function exportText(){
   return `孤獨異世界紀錄 v${APP_VER}（存檔 ${VER}）\n第${S.day}天 ${String(S.hour).padStart(2,"0")}:00　第${S.ch}章　在${S.at}　${S.lv}級 BP${bpOf()}　HP ${S.hp}/${hpMax()}　MP ${S.mp}\n`+
    `避難所：${S.needs.避難所?"✔":"✘"}　房子：${myHouses().map(h=>`${h.at}${h.lv}`).join("、")||"無"}\n技能：${S.skills.map(s=>`${s.n}${s.lv}(用${s.used})`).join("、")}\n倉庫：${S.store.map(s=>s.n).join("、")||"無"}\n`+
-   `碎片：${S.frags.length}　看過的技巧：${S.seen.map(x=>x.n).join("、")||"無"}\n材料：${MATS.filter(m=>S.mats[m]).map(m=>m+"×"+S.mats[m]).join("、")}　物品：${S.items.map(i=>i.n).join("、")}　裝備：${SLOTS.filter(k=>S.eq[k]).map(k=>k+"="+S.eq[k].n).join("、")}　金幣 ${S.gold}\n`+
+   `碎片：${S.frags.length}\n材料：${MATS.filter(m=>S.mats[m]).map(m=>m+"×"+S.mats[m]).join("、")}　物品：${S.items.map(i=>i.n).join("、")}　裝備：${SLOTS.filter(k=>S.eq[k]).map(k=>k+"="+S.eq[k].n).join("、")}　金幣 ${S.gold}\n`+
    `統計：${JSON.stringify(S.stats)}\n紀錄：\n`+S.log.map(l=>`第${l.day}天 ${String(l.hour).padStart(2,"0")}:00 ${l.t}`).join("\n");
 }
 function sheetStats(){

@@ -304,7 +304,6 @@ function aiContext(){
   L.push(`裝備：${SLOTS.map(k=>S.eq[k]?`${k}＝${S.eq[k].n}${S.eq[k].mg?"（"+mgDesc(S.eq[k].mg)+"）":""}`:"").filter(Boolean).join("、")||"無"}`);
   if(S.store.length)L.push(`倉庫（不能直接用）：${S.store.map(s=>s.n).join("、")}`);
   L.push(`背包物品：${S.items.map(i=>i.n).join("、")||"無"}；材料：${MATS.filter(m=>S.mats[m]).map(m=>m+"×"+S.mats[m]).join("、")||"無"}`);
-  L.push(`看過的魔物技巧：${S.seen.map(x=>`${x.n}（${x.from}）`).join("、")||"無"}`);
   if(S.ch===2)L.push(`據點：${S.nest} 級（${S.base}），點數 ${S.pts}；設施：${S.fac.map(f=>f.n+(f.s?`〔${f.s.n}〕`:"〔空〕")).join("、")||"無"}`);
   if(S.raid)L.push(`${S.raid.kind==="boss"?"魔王戰":"升級戰"}進行中：第 ${S.raid.i+1}/${S.raid.list.length} 場（${S.enc?S.enc.dir:""}），已輸 ${S.raid.lost}`);
   if(S.enc)L.push(`正在遭遇：${S.enc.n}（${S.enc.lv} 級，屬性 ${(S.enc.e||[]).join("、")||"無"}${S.enc.r?"，遠程":""}）${S.enc.army?"，大軍":""}`);
@@ -326,8 +325,7 @@ const PARSE_SYS=`你是文字冒險遊戲的「規則翻譯員」。把玩家的
  "costs":["玩家說願意付的代價：hp|mp|time|item|shesh（捨身＝拿傷殘換大成功）"],
  "say":"用一句繁體中文重述玩家要做的事"}
 規則：
-- 玩家把技能用在某個東西上、或把幾個技能疊在一起用，就是 combo；obj 是用在誰身上（地點、物品、看過的魔物技巧、眼前的敵人）。
-- 模仿或偷學魔物的動作：combo，obj.t="seen"，n=那個技巧名。
+- 玩家把技能用在某個東西上、或把幾個技能疊在一起用，就是 combo；obj 是用在誰身上（地點、物品、眼前的敵人）。
 - 動詞對應手法：鋪開、籠罩→覆蓋；扔、射、甩出去→丟出去；包、圍、裹→包住；附在武器上→灌進武器；嚇、吼、威脅→嚇；感覺、探查、聽、看→感受；聚在一點、加熱、點燃→集中；壓、擠、榨→壓縮；加速、強化身體、疊起來衝→催動。
 - 喝藥、吃藥水＝potion（item 填藥名）；突襲敵對據點、深入地城或迷宮＝delve。
 - 找吃的、撿東西＝gather；四處走走找新地方＝explore；找獵物＝hunt；遭遇中打＝fight，逃＝retreat；做石刀、草棚、火種、水袋等＝craft；進岩穴住下＝shelter；換地方＝move；養傷、坐著休息＝rest；睡到明天＝sleep；只是聊天或想事情＝talk。
