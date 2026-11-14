@@ -151,7 +151,7 @@ function renderPanel(){
     ${S.scars.length?`<div class="note">身上的捨身傷：${S.scars.length} 處。打贏魔王時還有 ${BAD_END_SCARS} 處以上就是壞結局。據點 S 級後可以開發萬靈藥治好一處。</div>`:""}
     <div>目前 → <b>${res}</b>${it.act==="combo"?"（組合失敗也會得到碎片）":""}</div>`;
   }
-  h+=`<p><button class="pri" id="dok" ${q.err?"disabled":""}>執行</button> ${q.key?"":`<button id="dno">取消</button>`}</p></div>`;
+  h+=`<p><button class="pri" id="dok" ${q.err?"disabled":""}>執行</button> <button id="dno">${q.key?"返回（換別的打法）":"取消"}</button></p></div>`;   /* v5.25：升級戰也能返回（MP 不夠時不會卡住） */
   P.innerHTML=h;
   P.querySelectorAll("[data-s]").forEach(b=>b.onclick=()=>{const k=b.dataset.s.slice(0,-1),pl=b.dataset.s.slice(-1)==="+";d.p[k]=Math.max(0,Math.min(q.caps[k],d.p[k]+(pl?1:-1)));renderPanel()});
   P.querySelectorAll("[data-pi]").forEach(b=>b.onclick=()=>{const L=payables(q),x=L[+b.dataset.pi];if(!x||d.p.items.length>=q.caps.item)return;d.p.items.push(x.t==="mat"?{t:"mat",n:x.n}:{t:x.t,it:x.it});d.p.item=d.p.items.length;renderPanel()});
