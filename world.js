@@ -71,7 +71,7 @@ function mgDesc(mg){
   const f=MAGIC_FX.concat(LEGEND_FX).find(x=>x.t===mg.t);return f?f.d:(mg.d||"");
 }
 function genMagic(lv,base,legend){
-  const n=base||pick(Object.keys(GEAR));const it=mkGear(n,lv);const fx=legend?pick(LEGEND_FX):pickW(MAGIC_FX);const mg={t:fx.t};
+  const n=base||pick(Object.keys(GEAR).filter(k=>k!=="魔核戒指"));   /* v5.22：白字戒指改叫骨戒指 */const it=mkGear(n,lv);const fx=legend?pick(LEGEND_FX):pickW(MAGIC_FX);const mg={t:fx.t};
   if(fx.t==="skill"){const t=pick(COMBOS.concat(START_POOL));mg.v={n:t.n,e:t.e.slice(),c:t.c.slice(),f:t.f||"",d:t.d};mg.d=`附帶技能【${t.n}】（不扣 MP）`;it.n=`${t.n}・${n}`}
   else if(fx.t==="elem"||fx.t==="resist"){mg.v=pick(ELEMS);it.n=(fx.t==="elem"?`${ELEM_NM[mg.v]}紋`:`避${mg.v}`)+n}
   else if(fx.t==="bane"){mg.v=pick(FOE_TYPES);it.n=`剋${mg.v}${n}`}

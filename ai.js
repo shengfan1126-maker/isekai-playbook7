@@ -401,7 +401,7 @@ async function aiNarrate(said,result,prev){
 async function aiForge(text){
   const sys=`你是「孤獨異世界」的大賢者。玩家想在鍛冶台打造一件魔法裝備，把它拆成結構，交給程式檢查。你不判成敗、不給東西。
 只輸出 JSON：{"base":"底子","prim":"用途","kind":"控制的種類（不是控制就空字串）","tags":["標籤"],"why":"一句繁體中文，這件東西怎麼做到"}
-- base 只能是：${WHITE_BASES.join("、")}（劍、刀、匕首＝石刀；斧、錘＝石斧；矛、槍＝石矛；弓＝短弓；盾＝木盾；帽、盔＝皮帽；甲、衣、斗篷＝皮甲；鞋、靴＝草鞋；項鍊＝骨項鍊；戒指＝魔核戒指）。
+- base 只能是：${WHITE_BASES.join("、")}（劍、刀、匕首＝石刀；斧、錘＝石斧；矛、槍＝石矛；弓＝短弓；盾＝木盾；帽、盔＝皮帽；甲、衣、斗篷＝皮甲；鞋、靴＝草鞋；項鍊＝骨項鍊；戒指＝骨戒指）。
 - prim 只能是：隱匿、破綻、位移、防護、傷害、環境、控制。控制時 kind 填：${Object.keys(ART_CTRL).join("、")} 之一。
 - tags 只能從這 15 個挑 1～2 個：${ART_TAGS.join("、")}。要挑做得到那個用途的：${Object.entries(ART_PRIM).filter(([k])=>!["附加","增幅"].includes(k)).map(([k,v])=>k+"＝"+v.join("、")).join("；")}；控制：${Object.entries(ART_CTRL).map(([k,v])=>k+"＝"+v.join("、")).join("；")}。`;
   const res=await callModel([{role:"system",content:sys},{role:"user",content:`【玩家想做】${text}`}],600,r=>{const o=parseObjs(r.txt).find(x=>x&&x.prim);if(!o)throw new Error("沒有照格式回 JSON");return o});
