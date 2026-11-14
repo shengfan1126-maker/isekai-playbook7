@@ -97,8 +97,10 @@ function renderPanel(){
     const rinfo=R?`${esc(E.dir)}。${E.army?"大軍，沒有技巧可學。":`牠會「${esc(E.t.n)}」（升級戰頭目的獨特技巧，學不來）。`}多打一：劣勢 ${E.dis||0} 條，設施擋掉 ${Math.min(E.dis||0,facBlock())} 條。這是關鍵戰（淨優勢最多 0），不能付「多花時間」，「用掉東西」只能用背包裡的物品、一場一件。${boss?"魔王戰逃不掉。":"逃走＝放棄據點（設施全毀、F 級重來、物資剩一半）。"}`:
       `牠會「${esc(E.t.n)}」。打、用組合、或撤退（撤退也要付代價，例如丟下東西）。${gIdx(E.lv)-pg()>=2?`<br><b>牠比你高 ${gIdx(E.lv)-pg()} 級，看起來打不贏。</b>${S.items.some(x=>x.k==="escape")?"撒逃跑粉就能脫身，不用付代價。":"沒有逃跑粉了（草 2、骨頭 1 可以做）。"}`:""}`;
     const ee=(E.e||[]).length?`屬性：${E.e.join("・")}${(E.e||[]).map(x=>Object.keys(COUNTER).filter(k=>COUNTER[k].includes(x))).flat().length?`（怕：${uniq(E.e.flatMap(x=>Object.keys(COUNTER).filter(k=>COUNTER[k].includes(x)))).join("、")}）`:""}。`:"";
+    const ft=R?[]:foeTags(),fa=R?"":foeAtk();const ftx=ft.length||fa?`${ft.length?`特性：${ft.map(t=>`${t}（${ART_FOE[t]||""}）`).join("；")}。`:""}${fa?`攻擊帶「${fa}」${ELEMS.includes(fa)?`（有避${fa}的魔法裝備，輸了傷害減半）`:""}。`:""}`:"";
+    const ww=S.eq.武器,wf=E.king?7:gIdx(E.lv);const wwarn=ww&&gIdx(ww.lv)<Math.min(6,wf)-1?`<br><b>你的${esc(ww.n)}是 ${ww.lv} 級，比牠低兩級以上：拿來打會壞（不能修）。</b>判定時不勾「用」就不會壞，只是少 +1。`:"";
     const rr=E.amb?"<b>你被突襲了</b>：牠已經在身邊，拿遠程武器要多付 1 項拉開距離。":E.brk?"<b>這一面被突破</b>：敵人衝到身邊，拿遠程武器要多付 1 項拉開距離。":E.r?"牠在遠處（遠程）：近戰要多付 1 項才能接近。":"";
-    P.innerHTML=h+`<div class="box enc"><b>${R?(boss?"魔王戰":"升級戰")+` 第 ${S.raid.i+1}/${S.raid.list.length} 場`:"遭遇"}：${esc(E.n)}（${E.lv} 級${E.king?"・BP 99":""}）</b>　你是 ${S.lv} 級。<br><span class="note">${ee}${rr}${rinfo}也可以直接在上面打字說你要怎麼做：技能、武器、材料、地形想串幾個就串幾個，大賢者會拆成步驟，新用法每一步抵 1 項代價；組合成立還會靈光一閃（三選一）。戰鬥中也能喝藥（敵人會打你一下）。</span>
+    P.innerHTML=h+`<div class="box enc"><b>${R?(boss?"魔王戰":"升級戰")+` 第 ${S.raid.i+1}/${S.raid.list.length} 場`:"遭遇"}：${esc(E.n)}（${E.lv} 級${E.king?"・BP 99":""}）</b>　你是 ${S.lv} 級。<br><span class="note">${ee}${esc(ftx)}${rr}${rinfo}${wwarn}也可以直接在上面打字說你要怎麼做：技能、武器、材料、地形想串幾個就串幾個，大賢者會拆成步驟，新用法每一步抵 1 項代價；組合成立還會靈光一閃（三選一）。戰鬥中也能喝藥（敵人會打你一下）。</span>
     <div class="row2"><button id="ef">${R?"迎擊":"戰鬥"}</button>${R?`<button id="ec">組合</button>`:""}${boss?"":`<button id="er">${R?"放棄據點逃走":"撤退"}</button>`}${!R&&S.items.some(x=>x.k==="escape")?`<button id="esc">撒逃跑粉（不用付代價）</button>`:""}</div></div>`;
     $("ef").onclick=()=>openDraft({act:"fight"});if($("ec"))$("ec").onclick=()=>openDraft({act:"combo",obj:{t:"enemy",n:S.enc.n}});if($("er"))$("er").onclick=()=>openDraft({act:"retreat"});if($("esc"))$("esc").onclick=()=>{const r=useEscape();if(r.err)toast=r.err;refresh()};
     return}
@@ -136,6 +138,7 @@ function renderPanel(){
     h+=`<div class="note">${esc(q.notes.join("；")||"沒有加成")}</div>
     <div>淨優勢 ${q.net} → 要付 <b>${q.need}</b> 項代價成功，<b>${q.bigAt}</b> 項大成功${q.key?"（關鍵戰）":""}${q.mand.mp?`　另扣 MP ${q.mand.mp}`:""}</div>
     ${d.shesh?"":step("hp","受傷 −"+q.unit+" HP")+step("mp","MP −2")+step("time","多花 2 小時")+itemPicker(q)}
+    ${q.weakWeapon?`<label class="ck"><input type="checkbox" id="dwp" ${it.weapon?"checked":""}>用${esc(q.weakWeapon.n)}（${q.weakWeapon.lv} 級，比對手低兩級以上）：+1，但打完會壞、不能修</label>`:""}
     ${q.dance?`<label class="ck"><input type="checkbox" id="ddc" ${d.dance?"checked":""}>讓${esc(q.dance.n)}替你打這一場（今天 1 次，不用付代價就算贏）</label>`:""}
     ${q.raid&&S.raid&&S.raid.shesh?`<div class="note">這場${S.raid.kind==="boss"?"魔王戰":"升級戰"}已經捨身過一次了。</div>`:`<label class="ck">捨身（拿一個部位的傷換大成功${q.raid?"，一場升級戰只能一次":""}）<select id="dsh"><option value="">不捨身</option>${SCAR_PARTS.map(p=>`<option value="${p}" ${d.shesh===p?"selected":""}>${p}：${SCAR_D[p]}${scarN(p)?`（已傷 ${scarN(p)}）`:""}</option>`).join("")}<option value="rand" ${d.shesh===true?"selected":""}>隨便哪裡</option></select></label>`}
     ${S.scars.length?`<div class="note">身上的捨身傷：${S.scars.length} 處。打贏魔王時還有 ${BAD_END_SCARS} 處以上就是壞結局。據點 S 級後可以開發萬靈藥治好一處。</div>`:""}
@@ -153,6 +156,7 @@ function renderPanel(){
   if($("dcr"))$("dcr").onchange=e=>{it.craft=e.target.value;renderPanel()};
   if($("dpl"))$("dpl").onchange=e=>{it.place=e.target.value;renderPanel()};
   if($("ddc"))$("ddc").onchange=e=>{d.dance=e.target.checked;renderPanel()};
+  if($("dwp"))$("dwp").onchange=e=>{it.weapon=e.target.checked;clampPick();renderPanel()};
   if($("dsh"))$("dsh").onchange=e=>{const v=e.target.value;d.shesh=v==="rand"?true:v||false;renderPanel()};
   if($("dno"))$("dno").onclick=()=>{draft=null;renderAll()};
   if(q.raid&&S.raid&&S.raid.shesh)d.shesh=false;

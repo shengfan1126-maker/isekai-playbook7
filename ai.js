@@ -378,7 +378,7 @@ const STEP_SYS=`你是文字冒險遊戲「孤獨異世界」裡的大賢者：�
 - 標籤只有遊戲這 15 個：${ART_TAGS.join("、")}。黏、粉末、沙、泥＝土；酸、冰、霧＝水；毒、影＝暗；熱、炎＝火；雷＝風。撒沙、撒粉弄瞎＝控制・致盲（土）；酸蝕、腐蝕＝傷害（水）。
 - 觸發詞（意思相近都算）：組合、結合、融合、混合、注入、裹上、點燃、加速、實驗、試試＝附加或增幅；抓住、按住、綁、困住、拖住、絆倒、弄瞎、悶住、嚇退、毒倒＝控制。`;
 async function aiSteps(text){
-  const ctx=`【現況】\n${aiContext()}\n\n【可用的東西】（名字｜種類｜標籤｜本來用法）\n${artListText()}\n\n【眼前的敵人】${S.enc?`${S.enc.n}（${S.enc.lv} 級）${foeTags().length?"，標籤："+foeTags().join("、"):""}`:"無"}`;
+  const ctx=`【現況】\n${aiContext()}\n\n【可用的東西】（名字｜種類｜標籤｜本來用法）\n${artListText()}\n\n【眼前的敵人】${S.enc?`${S.enc.n}（${S.enc.lv} 級）${foeTags().length?"，標籤："+foeTags().map(t=>`${t}（${ART_FOE[t]||""}）`).join("、"):""}`:"無"}`;
   const msgs=[{role:"system",content:STEP_SYS},{role:"user",content:`${ctx}\n\n【玩家】${text}`}];
   const res=await callModel(msgs,1500,r=>{const o=parseObjs(r.txt).find(x=>x&&(x.act||x.steps));if(!o)throw new Error("沒有照格式回 JSON");return o});
   const j=res.val,arr=x=>Array.isArray(x)?x:[];

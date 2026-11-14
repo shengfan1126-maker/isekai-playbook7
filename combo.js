@@ -24,12 +24,18 @@ function normStep(st){const x=Object.assign({},st,{tags:uniq((st.tags||[]).map(n
 const ART_PRIMS=Object.keys(ART_PRIM).concat("控制");
 /* 對手標籤：先從現有資料推出來（類別、名字），之後再一隻一隻標 */
 const ART_FOE={
+  敏捷:"直接打會被躲開：同一招裡要先有控制、破綻或隱匿",
+  飛行:"束縛要帶重量或土；地形（環境）沒用，風除外",
+  硬甲:"只帶切割的傷害沒用",
   群體:"束縛沒用；傷害要帶火、風、水、土、木這種範圍性質",
+  無眼:"致盲沒用",
   不呼吸:"窒息、中毒沒用",
   構裝:"威嚇、中毒沒用",
   巨大:"束縛、擊退要帶重量"};
 function foeTags(){
   const e=S.enc;if(!e)return [];const t=foeTypes(),out=[];
+  /* v5.14：魔物身上標好的標籤（舊存檔的遭遇從名字查） */
+  (e.tg||((MON_BY_NAME[String(e.n).split("＋").pop()]||{}).tg)||[]).forEach(x=>out.push(x));
   if(/群|大軍|軍團|騎士團/.test(e.n)||e.army)out.push("群體");
   if(t.includes("不死")||t.includes("構裝"))out.push("不呼吸");
   if(t.includes("構裝"))out.push("構裝");
@@ -76,7 +82,12 @@ function artCheck(steps,o){
       if(!(tags.some(y=>t.tags.includes(y))||tags.some(y=>fit.includes(y))||(tags.includes("風")&&t.tags.includes("火"))||tags.includes("魔力"))){r.why="和要增幅的那一步沒有關聯";return}}
     if(S.enc&&!o.practice){const has=y=>tags.includes(y);
       if(st.prim==="傷害"&&T.includes("群體")&&!tags.some(y=>["火","風","水","土","木"].includes(y))){r.why="一群東西，單點的攻擊打不完";return}
+      if(st.prim==="傷害"&&T.includes("敏捷")&&!res.slice(0,i).some(p=>p.ok&&["控制","破綻","隱匿"].includes(p.prim))){r.why=`${S.enc.n}太快，直接打會被躲開（先控制、找破綻或躲起來）`;return}
+      if(st.prim==="傷害"&&T.includes("硬甲")&&tags.every(y=>y==="切割")){r.why=`${S.enc.n}的硬殼，光用割的沒用`;return}
+      if(st.prim==="環境"&&T.includes("飛行")&&!has("風")){r.why=`${S.enc.n}在天上，地形困不住牠`;return}
       if(st.prim==="控制"){
+        if(st.kind==="致盲"&&T.includes("無眼")){r.why=`${S.enc.n}沒有眼睛`;return}
+        if(st.kind==="束縛"&&T.includes("飛行")&&!has("重量")&&!has("土")){r.why=`${S.enc.n}在天上，要帶重量或土才拉得下來`;return}
         if(st.kind==="束縛"&&T.includes("群體")){r.why="一群東西束縛不住";return}
         if((st.kind==="窒息"||st.kind==="中毒")&&T.includes("不呼吸")){r.why=`${S.enc.n}不用呼吸`;return}
         if((st.kind==="威嚇"||st.kind==="中毒")&&T.includes("構裝")){r.why=`${S.enc.n}不會怕、也不吃毒`;return}
@@ -92,7 +103,7 @@ function artCheck(steps,o){
 }
 /* 給大賢者看的清單 */
 function artListText(){
-  return artSources().map(x=>`${x.n}｜${{skill:"技能",weapon:"武器",env:"地形",self:"徒手",mat:"材料（用了會少一份）"}[x.k]}｜標籤：${x.tags.join("、")}｜本來用法：${x.p||"無"}${x.k==="skill"?`｜今天剩 ${x.left} 次`:""}${x.k==="mat"?`｜有 ${x.left} 份`:""}`).join("\n");
+  return artSources().map(x=>`${x.n}｜${{skill:"技能",weapon:"武器",env:"地形",self:"徒手",mat:"材料（用了會少一份）"}[x.k]}｜標籤：${x.tags.join("、")}｜本來用法：${x.p||"無"}${x.k==="skill"?`｜今天剩 ${x.left} 次`:""}${x.k==="mat"?`｜有 ${x.left} 份`:""}${x.k==="weapon"&&weakWeapon(weaponIt())?"｜比對手低兩級以上，玩家沒提到就不要用它（用了會壞）":""}`).join("\n");
 }
 
 /* ───── v5.3：招式 ─────

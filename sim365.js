@@ -21,7 +21,7 @@ const W={raidBattles:0,paid:0,takeLoss:0,shesh:0,flee:0,potion:0};
 function raidBattle(){
   const S=G.S,R=S.raid,s=bestFight();
   if(S.hp<G.hpMax()*.5&&G.hasItem("potion")){W.potion++;G.usePotion();if(!S.raid)return}
-  const it={act:"fight",skills:s&&S.mp>=1?[s.n]:[]};
+  const it={act:"fight",weapon:true,skills:s&&S.mp>=1?[s.n]:[]};
   const q=G.planOf(it);W.raidBattles++;
   if(DBG&&dbgOn)console.log(`  第${S.day}天 ${R.kind}戰 ${R.i+1}/${R.list.length} 你${S.lv} vs ${S.enc.n}${S.enc.lv}｜net ${q.net} need ${q.need}｜caps ${JSON.stringify(q.caps)} HP ${S.hp}/${G.hpMax()} MP ${S.mp} 物品${S.items.length}｜輸${R.lost}/${R.max}｜${q.notes.join("；")}`);
   const safeHp=S.hp-q.unit;           // 輸了還活著嗎
@@ -73,7 +73,7 @@ function play(idx){
     }
     if(S.pick&&!S.enc){G.choosePick(0);if(S.pick)S.pick=null;continue}   /* 三選一：選第一個 */
     if(S.raid&&S.enc){raidBattle();continue}
-    if(S.enc){const d=G.gIdx(S.enc.lv)-G.gIdx(S.lv);const s=bestFight();const q=G.planOf({act:"fight",skills:s&&S.mp>=1?[s.n]:[]});
+    if(S.enc){const d=G.gIdx(S.enc.lv)-G.gIdx(S.lv);const s=bestFight();const q=G.planOf({act:"fight",weapon:true,skills:s&&S.mp>=1?[s.n]:[]});
       if(d<=1&&q.need<=maxPay(q)&&S.hp>q.unit*2)G.exec(q,pay(q,q.need));else if(S.items.some(i=>i.k==="escape")){W.powder=(W.powder||0)+1;G.useEscape()}else act({act:"retreat"},null);continue}
     if(S.hp<G.hpMax()*.4&&G.hasItem("potion")){G.usePotion();continue}
     if(S.hour>=20||S.hp<G.hpMax()*.4){const h=G.homeAt();if(h&&S.at!==h)G.travel(h,true);else G.sleep();continue}   /* v5.8：回據點睡才睡得飽 */

@@ -13,7 +13,7 @@ function play(maxDay){
   while(!S.over&&S.day<=maxDay&&guard++<5000){
     if(S.pending){if(S.pending.type==="ch2"){G.startCh2(true);break}if(S.pending.type==="failchoice"){G.failChoice(true);continue}}
     const sk=S.skills.filter(s=>s.today<3);
-    if(S.enc){const d=G.gIdx(S.enc.lv)-G.gIdx(S.lv);const q=G.planOf({act:"fight",skills:sk[0]?[sk[0].n]:[]});
+    if(S.enc){const d=G.gIdx(S.enc.lv)-G.gIdx(S.lv);const q=G.planOf({act:"fight",weapon:true,skills:sk[0]?[sk[0].n]:[]});
       if(d<=1&&q.need<=maxPay(q))G.exec(q,pay(q,q.need));else if(S.items.some(i=>i.k==="escape")){powder++;G.useEscape()}else act({act:"retreat"},null);continue}
     if(S.hour>=21||S.hp<G.hpMax()*.4){const h=G.homeAt();if(h&&S.at!==h)G.travel(h,true);else G.sleep();continue}
     const P=G.placeOf();

@@ -2,7 +2,7 @@
    用戶 11-11 定：
    - 裝備欄：頭、項鍊、戒指、武器（單手／雙手近戰／單手遠程／雙手遠程）、副手（盾配單手近戰；箭矢袋／石袋配遠程）、衣服、鞋子
    - 遠程武器多一條優勢；近戰打遠程的對手要多付一項才能接近；雙手近戰破壞力＝大成功少付 1 項
-   - 下克上：武器比對手低兩級以上，白字照用但用完就壞（v5.11：差一級不壞）；魔法物品比對手低，魔法效果沒用、用了一樣壞
+   - 下克上：武器比對手低兩級以上，白字照用但用完就壞（v5.11：差一級不壞；v5.14：玩家自己選才用，不選就不加、不壞）；魔法物品比對手低，魔法效果沒用、用了一樣壞
    - 魔法物品一個效果、一天 3 次；當代價一場只能付 1 次，同一場付第 2 次就壞
    - 壞掉、碎掉、用掉、丟失都是永久的，不能修
    - 戰鬥中可以喝藥，敵人照樣打你一下 */
@@ -85,6 +85,8 @@ function foeTypes(){const e=S.enc;if(!e)return [];const out=[];
   e.n.split("＋").forEach(nm=>{const t=Object.keys(MON_TYPE).find(k=>MON_TYPE[k].some(x=>nm.startsWith(x)));
     out.push(t||(e.tag==="構裝"?"構裝":ARMIES.some(a=>a.n===nm)||e.nest?"類人":"魔物"))});
   if(e.tag==="構裝")out.push("構裝");return uniq(out)}
+/* 對手攻擊帶什麼（v5.14 標在魔物上；舊存檔的遭遇從名字查） */
+function foeAtk(){const e=S.enc;if(!e)return "";if(e.atk)return e.atk;const m=MON_BY_NAME[String(e.n).split("＋").pop()];return m&&m.atk||""}
 function foeEss(){const e=S.enc;if(!e)return [];return uniq((e.e||[]).concat(e.t&&e.t.e||[]))}
 function counterOf(mine,theirs){
   for(const a of mine)for(const b of (COUNTER[a]||[]))if(theirs.includes(b))return `${a}>${b}`;
@@ -103,7 +105,11 @@ function gearBonus(q,act,sks){
   const vsEnemy=en&&["fight","combo"].includes(act);
   if(vsEnemy){
     const w=weaponIt();
-    if(w){net+=1;q.notes.push(`${w.n} +1`);q.useWeapon=w;
+    /* v5.14：下克上（武器比對手低兩級以上）不會自動拿來用。玩家自己選才用（+1，打完會壞）；不選就不加、不壞 */
+    const wk=w&&weakWeapon(w,q),chose=!!(q.it&&(q.it.weapon===true||(q.art&&q.art.fired.some(x=>x.k==="weapon"))));
+    const useW=w&&(!wk||chose);
+    if(wk){q.weakWeapon=w;q.notes.push(useW?`${w.n}（${w.lv}）比對手低兩級以上：這場用了，打完會壞`:`${w.n}（${w.lv}）比對手低兩級以上：沒拿來用（勾「用」才 +1，打完會壞）`)}
+    if(useW){net+=1;q.notes.push(`${w.n} +1`);q.useWeapon=w;
       if(isRanged()){net+=1;q.notes.push("遠程 +1")}
       if(isTwoHand())q.smash=true;}
     const c=counterOf(myEss(sks),foeEss());
@@ -111,9 +117,9 @@ function gearBonus(q,act,sks){
     const army=en.army?ARMIES.find(a=>a.n===en.n||en.n.startsWith(a.n)):null;
     const race=Object.keys(RACES).find(r=>racialOwned(r)&&((army&&RACES[r].vs===army.n)||(r==="矮人"&&en.tag==="構裝")));
     if(race){net+=1;q.notes.push(`${RACES[race].sk.n}剋${army?army.n:"構裝體"} +1`)}
-    const ranged=isRanged()||sks.some(s=>s.f==="投射")||(act==="combo"&&q.it.move==="丟出去");
+    const ranged=(useW&&isRanged())||sks.some(s=>s.f==="投射")||(act==="combo"&&q.it.move==="丟出去");
     const close=en.amb||en.brk;   /* 被突襲、或升級戰某一面被突破：對手已經在身邊 */
-    if(close&&!en.r&&isRanged()){
+    if(close&&!en.r&&useW&&isRanged()){
       if(uniqOn("noamb")){q.notes.push("月光長弓：先手，不用拉開距離")}
       else{net-=1;q.approach=1;q.notes.push(`${en.brk?"這一面被突破，敵人衝到身邊":"被近身突襲"}：遠程 +1 不算，還要多付 1 項拉開距離`)}}
     else if(en.r&&!ranged&&!close){q.approach=1;q.notes.push("對手在遠處：近戰要多付 1 項才能接近")}
@@ -136,12 +142,14 @@ function gearBonus(q,act,sks){
   }
   return net;
 }
+/* 武器比對手低兩級以上（下克上：用了打完會壞） */
+function weakWeapon(w,q){const fi=Math.min(6,q&&q.foe!=null?q.foe:foeIdx());return !!(w&&fi>=0&&gIdx(w.lv)<fi-1)}
 /* 身上有效的聚落專屬魔法武器 */
 function uniqOn(t){return eqItems().find(it=>it.mg&&it.mg.t===t&&it.mg.race&&gIdx(it.lv)>=Math.min(6,foeIdx()))}
 /* 輸一場的傷害倍率：盾 −20%、衣服 −20%、頭 −10%；屬性抗性再減半 */
 function dmgMult(){
   let m=1-(S.eq.副手&&gearOf(S.eq.副手).wt==="盾"?.2:0)-(S.eq.衣服?.2:0)-(S.eq.頭?.1:0)-.2*mgOn("defend").length;
-  const fe=foeEss();if(mgOn("resist").some(it=>fe.includes(it.mg.v)))m*=.5;
+  const fe=foeEss().concat(foeAtk()||[]);if(mgOn("resist").some(it=>fe.includes(it.mg.v)))m*=.5;   /* v5.14：對手的攻擊性質也算 */
   return Math.max(.3,m);
 }
 /* 打完一場：下克上的裝備用完就壞 */
@@ -226,7 +234,7 @@ function rollPlaceEnemy(){
   if(!cand.length){let i=Math.min(want,6);while(!MONSTERS[GRADES[i]])i--;cand=MONSTERS[GRADES[i]].map(m=>Object.assign({lv:GRADES[i]},m))}
   const best=Math.min(...cand.map(m=>Math.abs(gIdx(m.lv)-want)));
   const m=pick(cand.filter(m=>Math.abs(gIdx(m.lv)-want)===best));
-  return {n:m.n,lv:m.lv,e:(m.e||[]).slice(),t:m.t,r:m.r||0,tag:m.tag||""};
+  return {n:m.n,lv:m.lv,e:(m.e||[]).slice(),t:m.t,r:m.r||0,tag:m.tag||"",tg:(m.tg||[]).slice(),atk:m.atk||""};
 }
 
 /* v5.13：設施說明告訴玩家種族技能去哪學 */
