@@ -189,7 +189,7 @@ function useBonus(q,act){
 
 /* ───── v5.18：打字的魔核、部位指令（不經過 AI，程式自己認）─────
    用戶 11:06：打「山鼠群魔核跟石矛組合」只有旁白、沒做出東西 → 程式先認，認得出來就直接做。簡體字也認。 */
-const S2T={莱:"萊",泽:"澤",头:"頭",兽:"獸",鸟:"鳥",猪:"豬",尸:"屍",龙:"龍",树:"樹",灵:"靈",骑:"騎",双:"雙",飞:"飛",剑:"劍",锤:"錘",项:"項",链:"鍊",髅:"髏",战:"戰",杀:"殺",风:"風",壳:"殼",灾:"災",雾:"霧",组:"組",锻:"鍛",炼:"鍊",练:"練",学:"學",结:"結",镶:"鑲",进:"進",装:"裝",盔:"盔",帽:"帽",鞋:"鞋",戒:"戒",矛:"矛",弓:"弓",盾:"盾",斧:"斧",刀:"刀",甲:"甲",僵:"殭",蝎:"蠍",虫:"蟲",蚁:"蟻",鱼:"魚",绳:"繩",带:"帶",铁:"鐵",铠:"鎧",护:"護",冻:"凍",岩:"岩",爪:"爪",角:"角",牙:"牙",鳞:"鱗",翅:"翅",尾:"尾"};
+const S2T={莱:"萊",泽:"澤",脱:"脫",卖:"賣",买:"買",隐:"隱",备:"備",换:"換",药:"藥",铸:"鑄",坚:"堅",丰:"豐",归:"歸",传:"傳",视:"視",闪:"閃",惧:"懼",吓:"嚇",击:"擊",冲:"衝",轻:"輕",烧:"燒",电:"電",圣:"聖",锐:"銳",斩:"斬",订:"訂",制:"製",顶:"頂",条:"條",们:"們",个:"個",件:"件",头:"頭",兽:"獸",鸟:"鳥",猪:"豬",尸:"屍",龙:"龍",树:"樹",灵:"靈",骑:"騎",双:"雙",飞:"飛",剑:"劍",锤:"錘",项:"項",链:"鍊",髅:"髏",战:"戰",杀:"殺",风:"風",壳:"殼",灾:"災",雾:"霧",组:"組",锻:"鍛",炼:"鍊",练:"練",学:"學",结:"結",镶:"鑲",进:"進",装:"裝",盔:"盔",帽:"帽",鞋:"鞋",戒:"戒",矛:"矛",弓:"弓",盾:"盾",斧:"斧",刀:"刀",甲:"甲",僵:"殭",蝎:"蠍",虫:"蟲",蚁:"蟻",鱼:"魚",绳:"繩",带:"帶",铁:"鐵",铠:"鎧",护:"護",冻:"凍",岩:"岩",爪:"爪",角:"角",牙:"牙",鳞:"鱗",翅:"翅",尾:"尾"};
 const toTrad=t=>[...String(t||"")].map(c=>S2T[c]||c).join("");
 function findCores(t){return S.items.map((it,i)=>({it,i})).filter(x=>isCore(x.it)&&(t.includes(x.it.n)||t.includes(x.it.src)))}
 function findWhite(t){const L=whiteRefs();return L.find(x=>t.includes(x.it.n))||L.find(x=>t.includes(x.it.base||""))||L.find(x=>BASE_WORD[x.it.base]&&t.includes(BASE_WORD[x.it.base]))||null}
@@ -225,3 +225,20 @@ function junkSellMat(m,n){const e=junkErr();if(e)return {err:e};n=Math.min(n||1,
   S.mats[m]-=n;const g=n*JUNK_GOLD;S.gold+=g;log(`黑心廢品回收：${m}×${n}，+${g} 金幣（現在 ${S.gold}）。`);return {ok:true,g}}
 function junkSellItem(i){const e=junkErr();if(e)return {err:e};const it=S.items[i];if(!it)return {err:"沒有"};
   S.items.splice(i,1);S.gold+=JUNK_GOLD;log(`黑心廢品回收：${it.n}，+${JUNK_GOLD} 金幣（現在 ${S.gold}）。`);return {ok:true,g:JUNK_GOLD}}
+
+/* ───── v5.30：更多打字指令由程式自己認（不經過 AI，簡繁都認）─────
+   「把石刀捐了」「捐 骨頭 3」「穿上皮甲」「脫下皮帽」「賣掉紅藥水」「全賣骨頭」「打造隱形皮甲」 */
+function findBagItem(t){let best=-1,len=0;S.items.forEach((it,i)=>{const n=toTrad(it.n);if(t.includes(n)&&n.length>len){best=i;len=n.length}});return best}
+function findMat(t){return MATS.filter(m=>t.includes(m)).sort((a,b)=>b.length-a.length)[0]||null}
+function numIn(t,max){if(/全部|全|都/.test(t))return max;const m=t.match(/(\d+)/);return m?Math.min(+m[1],max):1}
+function localItemCmd(raw){
+  if(S.enc||S.raid||S.pending)return null;const t=toTrad(raw);
+  if(/捐/.test(t)){const i=findBagItem(t);if(i>=0)return donateItem(i);const m=findMat(t);if(m)return (S.mats[m]||0)>0?donate(m,numIn(t,S.mats[m])):{err:`沒有${m}`};return null}
+  if(/穿上|裝上|裝備|換上|戴上|拿起/.test(t)){const i=findBagItem(t);if(i>=0&&S.items[i].slot)return equip(i);
+    const k=SLOTS.find(s=>S.eq[s]&&t.includes(toTrad(S.eq[s].n)));if(k)return {err:`${S.eq[k].n}已經穿在身上了`};return null}
+  if(/脫下|卸下|拿下|脫掉/.test(t)){const k=SLOTS.find(s=>S.eq[s]&&t.includes(toTrad(S.eq[s].n)));if(k)return unequip(k);return null}
+  if(/賣|回收/.test(t)&&!villageAt()){const i=findBagItem(t);if(i>=0)return junkSellItem(i);const m=findMat(t);if(m)return (S.mats[m]||0)>0?junkSellMat(m,numIn(t,S.mats[m])):{err:`沒有${m}`};return null}
+  {const m=t.match(/(?:打造|鍛造|訂做|訂製)(?:一[把件個雙頂條枚只副])?(.+)$/);if(m){if(!atForge())return {err:"特定打造要在據點，而且有鍛冶台"};
+    const name=m[1].trim(),f=parseForgeLocal(name);if(!f)return {err:`看不出「${name}」要什麼效果；去鍛冶台頁打，或名字加上「隱形」「吸血」「抗火」「加速」這種字`};return forgeOrder(f)}}
+  return null;
+}

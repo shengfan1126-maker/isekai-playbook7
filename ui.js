@@ -193,6 +193,7 @@ async function sendSay(){
   if(S.pending||draft){toast="先處理上面的事。";renderPanel();return}
   if(S.pick){if(/不是我要|重抽|換一個|换一个|換別的|换别的|重來|重来/.test(t)){const r=rerollPick();if(r.err)toast=r.err}else toast="先選完三選一（不喜歡可以打「這不是我要的」重抽一次）。";refresh();return}
   {const r=!S.enc&&localGearCmd(t);if(r){if(r.err)toast=r.err;refresh();return}}   /* v5.18：「山鼠群魔核跟石矛組合」「鍛鍊山鼠群魔核」 */
+  {const r=localItemCmd(t);if(r){if(r.err)toast=r.err;save();refresh();return}}   /* v5.30：捐、穿、脫、賣、打造 */
   {const r=localCalm(t);if(r){if(r.err)toast=r.err;refresh();return}}
   {const r=!S.enc&&localPartCraft(t);if(r){if(r.err)toast=r.err;refresh();return}}   /* v5.15：「用鹿角做匕首」 */
   if(S.enc&&!S.enc.raid&&/逃跑粉|逃跑藥|逃跑药/.test(t)){const r=useEscape();if(r.err)toast=r.err;refresh();return}   /* v5.13：打字撒逃跑粉，不經過 AI、不付代價 */

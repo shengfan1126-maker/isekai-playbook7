@@ -1,7 +1,7 @@
 /* isekai-playbook7｜data.js：內容表（技能、地點、魔物、組合正解、配方、文字）。只有資料，不放規則。
    所有 .js 共用全域；載入順序 data → game → ai → ui。 */
 const VER="0.2";
-const APP_VER="5.29";   /* 頁面版本（標題、複製紀錄）；VER 是存檔格式 */
+const APP_VER="5.30";   /* 頁面版本（標題、複製紀錄）；VER 是存檔格式 */
 const GRADES=["F","E","D","C","B","A","S"];
 const CATS=["魔法","戰鬥","生存","機動","製作","社交"];   // 六大類；魔物的技巧另算「天生」
 
