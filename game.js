@@ -128,14 +128,14 @@ function tick(need,why,out){
 function checkChapter(){
   /* v5.6：第一章只要有避難所（草棚或岩穴）就能建立據點；食物、火、水不擋關，只影響身體 */
   if(S.ch===1&&S.needs.避難所&&S.shelterAt&&S.at===S.shelterAt&&!S.pending&&!S.ch1Offered){
-    S.ch1Offered=true;S.stats.ch1Day=S.day;S.pending={type:"ch2"};gainExist(3);log("你有了能落腳的地方。第一章完成。存在值 +3。","good");
+    S.ch1Offered=true;log(`你有了能落腳的地方（${S.at}）。按選單「建立據點」，就在這裡建立據點、進入第二章。`,"good");   /* v5.18：不自動過關 */
   }
 }
 /* 一個成功的效果（本質＋形態）能滿足哪些需求 */
 function applyEffect(eff,out){
   if(!eff)return;
   const has=x=>eff.e.includes(x);
-  if(eff.g)tick(eff.g,`「${eff.n}」`,out);
+  if(eff.g&&eff.g!=="避難所")tick(eff.g,`「${eff.n}」`,out);   /* v5.18：技能不算避難所 */
   if(has("火")||eff.f==="點火")tick("火","你弄出了火",out);
   if(has("水"))tick("水","你有了水",out),S.drank=true;
   /* v5.17：技能堆的土牆不算避難所（不能建立據點）；要蓋草棚或占岩穴 */
@@ -170,12 +170,12 @@ function planOf(it){
     if(!MOVES.some(m=>m.n===it.move))q.err=q.err||"要選一個手法";
   }
   if(act==="craft"){const r=RECIPES.find(x=>x.n===it.craft);q.recipe=r;
-    if(!r)q.err="沒有這個配方";else if(r.cook&&!S.needs.火)q.err="要先有火（先做出火種）";else if(r.tag&&!hasTag(r.tag))q.err=`要有帶「${r.tag}」的技能`;else if(!["skill","shelter","food"].includes(r.k)&&bagFull()&&!(GEAR[r.n]&&!S.eq[GEAR[r.n].slot]))q.err=`背包滿了（${bagMax()} 件）`;else if(!Object.entries(r.need).every(([m,n])=>(S.mats[m]||0)>=n))q.err="材料不夠";
+    if(!r)q.err="沒有這個配方";else if(r.sh&&!baseable(S.at))q.err=`${S.at}不能蓋草棚當據點（要在野外，或打下來的敵對據點）`;else if(r.cook&&!S.needs.火)q.err="要先有火（先做出火種）";else if(r.tag&&!hasTag(r.tag))q.err=`要有帶「${r.tag}」的技能`;else if(!["skill","shelter","food"].includes(r.k)&&bagFull()&&!(GEAR[r.n]&&!S.eq[GEAR[r.n].slot]))q.err=`背包滿了（${bagMax()} 件）`;else if(!Object.entries(r.need).every(([m,n])=>(S.mats[m]||0)>=n))q.err="材料不夠";
     q.base=1;}
   if(act==="gather"||act==="explore")q.base=1;
   if(act==="gather"&&!(placeOf().res||[]).length)q.err="這裡沒什麼好採的";
   if(act==="retreat")q.base=1;
-  if(act==="shelter"){if(!placeOf().cave)q.err="這裡沒有能占用的岩穴";q.base=0}
+  if(act==="shelter"){if(!placeOf().cave)q.err="這裡沒有能占用的岩穴";else if(!baseable(S.at))q.err=`${S.at}不能當據點（敵對據點要先打下來），岩穴占了也沒用`;q.base=0}
   if(["fight","retreat"].includes(act)&&!S.enc)q.err="現在沒有遭遇";
   if(S.enc&&["fight","retreat","combo"].includes(act)){q.eIdx=S.enc.king?7:gIdx(S.enc.lv);if(S.enc.raid)q.key=q.raid=true}
   if(q.raid&&act==="retreat"&&S.raid&&S.raid.kind==="boss")q.err="魔王戰逃不掉";
@@ -641,6 +641,7 @@ function startCh2(here){
   if(here&&!baseable(S.at)){log(`${S.at}不能當據點（要在野外，或打下來的敵對據點）。先走到別的地方再從選單建立據點。`);S.pending=null;return}
   S.pending=null;
   if(!here){log("你決定先不定下來。（隨時可以從選單建立據點）");return}
+  S.stats.ch1Day=S.day;gainExist(3);log("第一章完成。存在值 +3。","good");
   S.ch=2;S.nest="F";S.base=S.at;S.bases=[S.at];S.stats.nestDay.F=S.day;S.pts=S.pts||0;S.fac=S.fac||[];
   log(`你在${S.at}建立了 F 級據點。第二章開始。捐物資換點數升級據點；每升一級，你的異香會引來大軍攻城。365 天後魔王（BP 99）復活。`,"good");
   offerFac();autoEvolve();

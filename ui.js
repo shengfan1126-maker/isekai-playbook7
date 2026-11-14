@@ -50,7 +50,7 @@ function renderMenu(){
   const sp=specialHere();if(sp)B.push(["special",sp.label]);
   if(villageAt())B.push(["village",`${villageAt().n}`]);
   if(S.base&&S.at!==S.base&&mgOn("tele").some(x=>mgUses(x)>0))B.push(["tele","傳送回據點"]);
-  if(S.ch===1&&S.ch1Offered&&!S.pending)B.push(["ch2","建立據點"]);
+  if(S.ch===1&&S.needs.避難所&&S.shelterAt&&!S.pending)B.push(["ch2",S.at===S.shelterAt?"建立據點":"回避難所建立據點"]);
   if(S.ch===2){const b=canBuild();B.push(["base","據點"],["build",b?`升級據點→${b.target}（${S.pts}/${b.need}）`:"據點已是 S",!b||!b.ok],["movebase","搬家"],["trade","交易"]);}
   if(canEvolve())B.push(["evolve","進化"]);
   if(hasItem("potion"))B.push(["potion","用藥"]);
@@ -73,7 +73,7 @@ function renderPanel(){
   if(toast)h+=`<div class="toast">${esc(toast)}</div>`;
   if(S.over){P.innerHTML=h;return}
   if(S.pending&&!draft){const t=S.pending.type;
-    if(t==="ch2"){P.innerHTML=h+`<div class="box"><b>第一章完成</b><br>你有了能落腳的地方。要在「${esc(S.at)}」建立據點，進入第二章嗎？${baseable(S.at)?"":"<br><b>這裡不能當據點</b>（要在野外，或打下來的敵對據點）。選「先不要」，走到別處再從選單建立。"}<br><span class="note">第二章：據點升級會被襲擊；搬家會讓據點變回 F 級、物資減半。</span>
+    if(t==="ch2"){P.innerHTML=h+`<div class="box"><b>建立據點</b><br>要在「${esc(S.at)}」建立據點，完成第一章、進入第二章嗎？${baseable(S.at)?"":"<br><b>這裡不能當據點</b>（要在野外，或打下來的敵對據點）。選「先不要」，走到別處再從選單建立。"}<br><span class="note">第二章：據點升級會被襲擊；搬家會讓據點變回 F 級、物資減半。</span>
       <p><button class="pri" id="c2y">在這裡建立據點</button> <button id="c2n">先不要</button></p></div>`;
       $("c2y").onclick=()=>{startCh2(true);refresh()};$("c2n").onclick=()=>{startCh2(false);refresh()};return}
     if(t==="failchoice"){const T=S.pending.boss?[]:moveTargets();
@@ -190,6 +190,7 @@ async function sendSay(){
   const t=($("sayt").value||"").trim();if(!t)return;narrFrom=S.logN||0;
   if(S.pending||draft){toast="先處理上面的事。";renderPanel();return}
   if(S.pick){if(/不是我要|重抽|換一個|换一个|換別的|换别的|重來|重来/.test(t)){const r=rerollPick();if(r.err)toast=r.err}else toast="先選完三選一（不喜歡可以打「這不是我要的」重抽一次）。";refresh();return}
+  {const r=!S.enc&&localGearCmd(t);if(r){if(r.err)toast=r.err;refresh();return}}   /* v5.18：「山鼠群魔核跟石矛組合」「鍛鍊山鼠群魔核」 */
   {const r=localCalm(t);if(r){if(r.err)toast=r.err;refresh();return}}
   {const r=!S.enc&&localPartCraft(t);if(r){if(r.err)toast=r.err;refresh();return}}   /* v5.15：「用鹿角做匕首」 */
   if(S.enc&&!S.enc.raid&&/逃跑粉|逃跑藥|逃跑药/.test(t)){const r=useEscape();if(r.err)toast=r.err;refresh();return}   /* v5.13：打字撒逃跑粉，不經過 AI、不付代價 */
@@ -246,7 +247,7 @@ function menuClick(k){
   if(k==="train")return sheetTrain();
   if(k==="exp"){const r=experiment();if(r.err)toast=r.err;refresh();return}
   if(k==="sleep"){sleep();refresh();return}
-  if(k==="ch2"){S.pending={type:"ch2"};refresh();return}
+  if(k==="ch2"){if(S.at!==S.shelterAt){const r=travel(S.shelterAt,false);if(r&&r.err){toast=r.err;refresh();return}}S.pending={type:"ch2"};refresh();return}
   if(k==="build")return sheetBuild();
   if(k==="movebase")return sheetMove();
   if(k==="evolve"){evolve();refresh();return}

@@ -2,7 +2,7 @@
 const fs=require("fs"),vm=require("vm");
 const ctx=vm.createContext({console,Math});
 vm.runInContext(["data.js","game.js","world.js","combo.js","gear.js"].map(f=>fs.readFileSync(__dirname+"/"+f,"utf8")).join("\n")+
-  "\nthis.G={newGame,planOf,exec,sleep,startCh2,failChoice,get S(){return S},hpMax,placeOf,gIdx,canExchange,drawChoices,exchange,RECIPES,MOVES,PLACES,travel,homeAt,useEscape};",ctx);
+  "\nthis.G={newGame,planOf,exec,sleep,startCh2,failChoice,get S(){return S},hpMax,placeOf,gIdx,canExchange,drawChoices,exchange,RECIPES,MOVES,PLACES,travel,homeAt,useEscape,baseable};",ctx);
 const G=ctx.G;let powder=0;
 function pay(q,want){const p={hp:0,mp:0,time:0,item:0};let n=want;for(const k of ["time","mp","item","hp"]){const t=Math.min(n,q.caps[k]);p[k]=t;n-=t}return p}
 const maxPay=q=>q.caps.hp+q.caps.mp+q.caps.time+q.caps.item;
@@ -11,6 +11,7 @@ function has(r){const S=G.S;return Object.entries(r.need).every(([m,n])=>(S.mats
 function play(maxDay){
   G.newGame();const S=G.S;let guard=0;
   while(!S.over&&S.day<=maxDay&&guard++<5000){
+    if(S.ch1Offered&&S.ch===1&&!S.pending&&!S.enc){if(S.at===S.shelterAt){G.startCh2(true);break}act({act:"move",place:S.shelterAt});continue}   /* v5.18：自己回避難所按建立據點 */
     if(S.pending){if(S.pending.type==="ch2"){G.startCh2(true);break}if(S.pending.type==="failchoice"){G.failChoice(true);continue}}
     const sk=S.skills.filter(s=>s.today<3);
     if(S.enc){const d=G.gIdx(S.enc.lv)-G.gIdx(S.lv);const q=G.planOf({act:"fight",weapon:true,skills:sk[0]?[sk[0].n]:[]});
@@ -25,9 +26,9 @@ function play(maxDay){
     const water=S.places.find(n=>G.placeOf(n).water);
     if(!S.needs.水){if(water&&S.at!==water){act({act:"move",place:water});continue}if(!water){act({act:"explore"});continue}}
     if(!S.needs.火){const r=G.RECIPES.find(x=>x.n==="火種");if(has(r)){act({act:"craft",craft:"火種"},1);continue}}
-    if(!S.needs.避難所){const cave=S.places.find(n=>G.placeOf(n).cave);
+    if(!S.needs.避難所){const cave=S.places.find(n=>G.placeOf(n).cave&&G.placeOf(n).kind==="wild");
       if(cave){if(S.at!==cave){act({act:"move",place:cave});continue}act({act:"shelter"},1);continue}
-      const r=G.RECIPES.find(x=>x.n==="草棚");if(has(r)){act({act:"craft",craft:"草棚"});continue}}
+      const r=G.RECIPES.find(x=>x.n==="草棚");if(has(r)){if(!G.baseable(S.at)){act({act:"move",place:S.places.find(n=>G.baseable(n))});continue}act({act:"craft",craft:"草棚"});continue}}
     if(Math.random()<.2){act({act:"explore"});continue}
     if(Math.random()<.25){act({act:"hunt"});continue}
     if(!P.res.includes("木材")&&!P.res.includes("石片")){const t=S.places.find(n=>G.placeOf(n).res.includes("木材"));if(t&&t!==S.at){act({act:"move",place:t});continue}}

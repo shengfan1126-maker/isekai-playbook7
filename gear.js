@@ -99,7 +99,7 @@ function craftPart(pi,want){
 }
 /* 打字：「用鹿角做匕首」 */
 function localPartCraft(t){
-  const m=String(t).match(/^\s*(?:用|拿|把)(.+?)(?:來|来)?(?:做成|做|作|打造|製作|制作|磨成|削成)(.+)$/);if(!m)return null;
+  t=toTrad(t);const m=String(t).match(/^\s*(?:用|拿|把)(.+?)(?:來|来)?(?:做成|做|作|打造|製作|制作|磨成|削成)(.+)$/);if(!m)return null;
   const key=m[1].replace(/[的了]/g,"");
   const i=S.items.findIndex(it=>isPart(it)&&(it.n.includes(key)||key.includes(it.part)&&(key.includes(it.src)||key.length<=2)||key.includes(it.src)));
   if(i<0)return {err:`背包裡沒有「${m[1]}」這種部位`};
@@ -185,4 +185,22 @@ function useBonus(q,act){
   useItems().forEach(it=>{const u=it.mg.use,L=useLv(it.lv);if(!want.includes(u.p))return;if(q.raid&&!L.raid)return;n+=L.n;names.push(`${it.n}（${useWord(u)}）+${L.n}`);if(L.free&&it.free!==S.day)free=it});
   const v=Math.min(USE_CAP,n);if(v)q.notes.push(names.join("、")+(n>USE_CAP?`（全身最多 +${USE_CAP}）`:""));
   if(free)q.useFree=free;return v;
+}
+
+/* ───── v5.18：打字的魔核、部位指令（不經過 AI，程式自己認）─────
+   用戶 11:06：打「山鼠群魔核跟石矛組合」只有旁白、沒做出東西 → 程式先認，認得出來就直接做。簡體字也認。 */
+const S2T={头:"頭",兽:"獸",鸟:"鳥",猪:"豬",尸:"屍",龙:"龍",树:"樹",灵:"靈",骑:"騎",双:"雙",飞:"飛",剑:"劍",锤:"錘",项:"項",链:"鍊",髅:"髏",战:"戰",杀:"殺",风:"風",壳:"殼",灾:"災",雾:"霧",组:"組",锻:"鍛",炼:"鍊",练:"練",学:"學",结:"結",镶:"鑲",进:"進",装:"裝",盔:"盔",帽:"帽",鞋:"鞋",戒:"戒",矛:"矛",弓:"弓",盾:"盾",斧:"斧",刀:"刀",甲:"甲",僵:"殭",蝎:"蠍",虫:"蟲",蚁:"蟻",鱼:"魚",绳:"繩",带:"帶",铁:"鐵",铠:"鎧",护:"護",冻:"凍",岩:"岩",爪:"爪",角:"角",牙:"牙",鳞:"鱗",翅:"翅",尾:"尾"};
+const toTrad=t=>[...String(t||"")].map(c=>S2T[c]||c).join("");
+function findCores(t){return S.items.map((it,i)=>({it,i})).filter(x=>isCore(x.it)&&(t.includes(x.it.n)||t.includes(x.it.src)))}
+function findWhite(t){const L=whiteRefs();return L.find(x=>t.includes(x.it.n))||L.find(x=>t.includes(x.it.base||""))||L.find(x=>BASE_WORD[x.it.base]&&t.includes(BASE_WORD[x.it.base]))||null}
+function localGearCmd(raw){
+  const t=toTrad(raw);if(!/魔核|核/.test(t))return null;
+  const cs=findCores(t);if(!cs.length)return /魔核/.test(t)?{err:"背包裡沒有這顆魔核（看一下背包裡魔核的名字）"}:null;
+  if(/合成|融合/.test(t)&&cs.length>=2)return mergeCores(cs[0].i,cs[1].i);
+  if(/組合|結合|合成|融合|鑲|嵌|注入|裝進|放進|做成|合在一起|打進|灌進|加到|加進/.test(t)){
+    const g=findWhite(t);if(!g)return {err:"要跟哪一件白字裝備組合？（例：「山鼠群魔核跟石矛組合」；裝備要是白字的）"};
+    return combineCore(cs[0].i,g.ref);
+  }
+  if(/鍛鍊|鍛煉|鍛鍊|練|學|吸收|化為己用/.test(t))return trainCore(cs[0].i);
+  return null;
 }
