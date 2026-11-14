@@ -508,7 +508,7 @@ function sheetBuild(){
   const P=RAID_PLAN[b.target],n=P.rounds||(P.army+P.mon.length),lose=Math.floor((n-1)/2)+1;
   const what=P.rounds?`一隻 ${P.mon} 級個體，${P.rounds} 回合`:`${P.army} 場 ${b.target} 級軍隊＋${P.mon.map(g=>g+" 級").join("、")}魔物（${n} 場）`;
   const weap=hasWeapon()?1:0,pot=S.items.filter(i=>i.k==="potion").length,pay=payables({raid:true}).length;
-  const unit=hpUnit(true),warn=[];
+  const unit=hpUnit(true,b.target),warn=[];
   if(S.hp<hpMax())warn.push(`HP 沒滿（${S.hp}/${hpMax()}）。輸一場扣 ${unit}，${S.hp<=unit?"<b>輸一場就會死</b>":`大約輸 ${Math.ceil(S.hp/unit)} 場會死`}。`);
   if(S.mp<mpMax())warn.push(`MP 沒滿（${S.mp}/${mpMax()}）。用技能一場扣 1，付代價一次扣 2。`);
   if(!weap)warn.push("沒有裝備武器（武器一場 +1，遠程再 +1）。");

@@ -56,7 +56,9 @@ const foodCount=()=>FOODS.reduce((a,m)=>a+(S.mats[m]||0),0);
 const addMat=(m,n)=>{if(n>0)S.mats[m]=(S.mats[m]||0)+n};
 const hasItem=k=>S.items.some(i=>i.k===k);
 const hasWeapon=()=>!!(S.eq&&S.eq.武器);
-const hpUnit=key=>Math.max(1,Math.ceil(hpMax()/4*(key&&!(S.eq&&mgOn("fort").length)?1.5:1)*(S.eq?dmgMult():1)));
+/* v5.28：挨一下扣多少看「對手的等級」：同級挨 4 下倒（對手那級 HP 的 1/4）；比你低的打你比較痛不起來，比你高的更痛。沒有對手時照自己的等級 */
+const foeLvNow=()=>S.enc?(S.enc.king?"S":S.enc.lv):S.lv;
+const hpUnit=(key,lv)=>Math.max(1,Math.ceil(HP_BASE(lv||foeLvNow())/4*(key&&!(S.eq&&mgOn("fort").length)?1.5:1)*(S.eq?dmgMult():1)));
 const nestIdx=()=>S.nest==null?-1:gIdx(S.nest);
 const bagMax=()=>Infinity;   /* v5.15：異世界人專屬，背包沒有上限 */
 const bagFull=()=>false;
