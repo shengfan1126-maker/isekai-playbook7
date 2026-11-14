@@ -151,7 +151,7 @@ function forgeCheck(f){
   if(!f.use.tags.some(t=>need.includes(t)))return `${useWord(f.use)}要有${need.join("、")}其中之一，「${f.use.tags.join("、")}」做不到`;
   return null;
 }
-const orderCost=lv=>{const g=gIdx(lv);const c={礦石:1+g};if(g>=1)c.魔核=g;if(g>=3)c.魔晶=g-2;return c};
+const orderCost=lv=>{const g=gIdx(lv);const c={礦石:1+g};if(g>=1)c.無名魔核=g;if(g>=3)c.魔晶=g-2;return c};
 function forgeOrder(f){
   const e=busyErr();if(e)return {err:e};if(!atForge())return {err:"要在據點，而且有鍛冶台"};if(S.forgeOrder)return {err:`鍛冶台正在打造${S.forgeOrder.n}（還要 ${S.forgeOrder.left} 天）`};
   const bad=forgeCheck(f);if(bad)return {err:bad};const lv=S.nest||"F",c=orderCost(lv),miss=lacks(c);if(miss.length)return {err:`材料不夠：還差 ${miss.join("、")}`};
@@ -195,6 +195,7 @@ function findCores(t){return S.items.map((it,i)=>({it,i})).filter(x=>isCore(x.it
 function findWhite(t){const L=whiteRefs();return L.find(x=>t.includes(x.it.n))||L.find(x=>t.includes(x.it.base||""))||L.find(x=>BASE_WORD[x.it.base]&&t.includes(BASE_WORD[x.it.base]))||null}
 function localGearCmd(raw){
   const t=toTrad(raw);if(!/魔核|核/.test(t))return null;
+  if(/無名魔核/.test(t)&&!findCores(t.replace(/無名魔核/g,"")).length)return {err:"無名魔核沒有技能，不能組合或鍛鍊；可以做藥水、捐給據點、送禮。有技能的是打倒魔物拆解拿到的「○○魔核」"};
   const cs=findCores(t);if(!cs.length)return /魔核/.test(t)?{err:"背包裡沒有這顆魔核（看一下背包裡魔核的名字）"}:null;
   if(/合成|融合/.test(t)&&cs.length>=2)return mergeCores(cs[0].i,cs[1].i);
   if(/組合|結合|合成|融合|鑲|嵌|注入|裝進|放進|做成|合在一起|打進|灌進|加到|加進/.test(t)){

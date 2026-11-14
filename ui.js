@@ -8,7 +8,7 @@ let busy=false;      // 等 AI 回答中
 
 function save(){ls.s(SAVE_KEY,JSON.stringify(S))}
 function load(){try{const t=ls.g(SAVE_KEY);if(t){S=JSON.parse(t);return S&&S.ver===VER}}catch(e){}return false}
-function heal(){S.store=S.store||[];S.frags=S.frags||[];S.seen=[];   /* v5.19：偷學拿掉 */S.scars=S.scars||[];S.items=S.items||[];S.mats=S.mats||{};worldFix();
+function heal(){S.store=S.store||[];S.frags=S.frags||[];S.seen=[];if(S.mats&&S.mats.魔核){S.mats.無名魔核=(S.mats.無名魔核||0)+S.mats.魔核;delete S.mats.魔核}   /* v5.21：材料魔核改名無名魔核 */   /* v5.19：偷學拿掉 */S.scars=S.scars||[];S.items=S.items||[];S.mats=S.mats||{};worldFix();
   S.scars=S.scars.map(x=>OLD_SCAR[x]||x);S.pts=S.pts||0;S.fac=S.fac||[];S.facPick=S.facPick||null;S.raid=S.raid||null;
   if(S.ch>=2&&!S.bases){S.bases=[];   /* 舊存檔：從紀錄找出當過據點的地方 */
     S.log.forEach(l=>{const m=l.t.match(/你在(.+?)建立了 F 級據點/)||l.t.match(/你把據點搬到(.+?)[。，]/);if(m&&!S.bases.includes(m[1]))S.bases.push(m[1])});
@@ -426,7 +426,7 @@ function sheetVillage(){
   const tr=tradeRel(P.race);
   let h=`<h3>${esc(P.n)}</h3><p>${P.race}對你：<b>${REL_WORD[rel]}</b>（你身上的異香讓他們討厭你，最多只到中立；警戒時價錢 ×2，中立 ×1.5）。金幣 ${S.gold}。</p>
   <p class="note">貿易關係：${tr?`<b>已建立</b>。可以買${esc(RACE_ITEM[P.race].n)}；打倒魔王時有貿易關係的聚落會跟你一起生活（好結局）。`:`還沒有（要${lang?"✔":"✘"}會${R.lang}、${rel>=0?"✔":"✘"}態度中立、${S.traded[P.race]?"✔":"✘"}在這裡買賣過）。有了才買得到${esc(RACE_ITEM[P.race].n)}（${esc(RACE_ITEM[P.race].d)}）。`}</p>`;
-  if(rel<0)h+=`<p><button data-v="gift|gold" ${lock?"disabled":""}>送禮（金幣 ${VILLAGE_PRICE.gift}）</button> <button data-v="gift|core" ${lock?"disabled":""}>送禮（魔核 ×2）</button> <span class="note">態度 +1</span></p>`;
+  if(rel<0)h+=`<p><button data-v="gift|gold" ${lock?"disabled":""}>送禮（金幣 ${VILLAGE_PRICE.gift}）</button> <button data-v="gift|core" ${lock?"disabled":""}>送禮（無名魔核 ×2）</button> <span class="note">態度 +1</span></p>`;
   if(rel<-1)h+=`<p class="bad-t">他們敵視你，連話都不跟你說。先送禮。</p>`;
   else{
     if(!lang)h+=`<p><button data-v="lang" ${lock?"disabled":""}>學${R.lang}（${Math.ceil(VILLAGE_PRICE.lang*relMult(P.race))} 金幣，4 小時）</button> <span class="note">不會語言不能交易、不能學技能。</span></p>`;
@@ -473,12 +473,12 @@ function sheetOoc(){
 function sheetBase(){
   const b=canBuild(),lock=!!(S.enc||S.pending||busy);
   let h=`<h3>據點 ${S.nest} 級（${esc(S.base||"")}）</h3><p class="note">還能搬的地方：${moveTargets().length?esc(moveTargets().join("、")):"沒有"}</p><p>點數 <b>${S.pts}</b>${b?`　升到 ${b.target} 要 ${b.need}`:"　已是 S"}</p>
-  <div class="note">捐物資換點數：一般材料 1 點、獸皮 2、魔核 4、物品 ${ITEM_PTS}。捐出去就沒了。升一級就會引來一場升級戰。</div>
-  ${b&&S.pts<b.need?`<p><button id="dnext" ${lock?"disabled":""}>捐到夠升 ${b.target}（還差 ${b.need-S.pts} 點）</button> <span class="note">先捐骨頭、獸皮、魔核，再木材、石片、草，食物留 5 份。</span></p>`:""}<table>`+
+  <div class="note">捐物資換點數：一般材料 1 點、獸皮 2、無名魔核 4、物品 ${ITEM_PTS}。捐出去就沒了。升一級就會引來一場升級戰。</div>
+  ${b&&S.pts<b.need?`<p><button id="dnext" ${lock?"disabled":""}>捐到夠升 ${b.target}（還差 ${b.need-S.pts} 點）</button> <span class="note">先捐骨頭、獸皮、無名魔核，再木材、石片、草，食物留 5 份。</span></p>`:""}<table>`+
   MATS.filter(m=>S.mats[m]).map(m=>`<tr><td>${m}×${S.mats[m]}</td><td class="note">${ptsOf(m)} 點</td><td><button data-dn="${m}|1" ${lock?"disabled":""}>捐 1</button> <button data-dn="${m}|h" ${lock?"disabled":""}>捐一半</button> <button data-dn="${m}|a" ${lock?"disabled":""}>全捐</button></td></tr>`).join("")+`</table>`;
   if(S.items.length)h+=`<p class="note">物品（背包 ${bagWord()}）：</p><p>`+S.items.map((it,i)=>`<button data-di="${i}" ${lock?"disabled":""}>捐 ${esc(it.n)}</button>`).join(" ")+`</p>`;
   if(S.nest==="S")h+=`<p><button id="retire" ${lock?"disabled":""}>蓋${MANSION.n}（退休）</button> <span class="note">${esc(costWord(MANSION.cost))}。${esc(MANSION.d)}</span></p>`;
-  if(S.nest==="S")h+=`<p><button id="mkcure" ${lock?"disabled":""}>開發萬靈藥（魔核 5、草 5，4 小時）</button> <span class="note">治好一處捨身傷。</span></p>`;
+  if(S.nest==="S")h+=`<p><button id="mkcure" ${lock?"disabled":""}>開發萬靈藥（無名魔核 5、草 5，4 小時）</button> <span class="note">治好一處捨身傷。</span></p>`;
   h+=`<h3>設施 ${S.fac.length}/${FAC_SLOTS(nestIdx())}</h3><div class="note">放一個技能進去才會運作；技能大類對口效果更好。放進去的技能離開技能表，拿回來放回技能表（滿了進倉庫）。放、拿各花 1 小時。升級戰時，每座在運作的設施擋掉 1 條劣勢。</div>`;
   h+=S.fac.map((f,fi)=>{const d=facDef(f.n);return `<div class="box"><b>${esc(f.n)}</b>　對口：${esc(d.cat)}${f.s?(facMatch(f)?"　✔對口":""):"　（沒在運作）"}<br><span class="note">${esc(d.d)}${facHint(f.n)?"<br>"+esc(facHint(f.n)):""}</span><br>
     ${f.s?`技能：【${esc(f.s.n)}】${f.s.lv}・${esc(f.s.c.join("・"))} <button data-fo="${fi}" ${lock?"disabled":""}>拿回來</button>`:""}

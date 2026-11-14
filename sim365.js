@@ -46,7 +46,7 @@ function goGather(mat){
   return act({act:"gather",skills:s&&S.mp>=1?[s.n]:[]});
 }
 const FAC_PREF=["柵欄","哨塔","藥草園","鍛冶台","修練場","農田"];
-const KEEP={生肉:3,野果:3,熟肉:0,石片:3,木材:4,草:4,獸皮:2,骨頭:1,魔核:4,礦石:2,魔晶:0};
+const KEEP={生肉:3,野果:3,熟肉:0,石片:3,木材:4,草:4,獸皮:2,骨頭:1,無名魔核:4,礦石:2,魔晶:0};
 function baseChores(){
   const S=G.S;
   if(S.facPick){const n=FAC_PREF.find(x=>S.facPick.includes(x))||S.facPick[0];G.pickFac(n);return true}
@@ -58,7 +58,7 @@ function baseChores(){
     if(m&&S.skills.length>3){G.facPut(fi,m.i);return true}
   }
   let did=false;
-  for(const m of Object.keys(S.mats)){const n=(S.mats[m]||0)-(KEEP[m]||0)-(S.nest==="S"&&S.scars.length&&(m==="魔核"||m==="草")?5:0);if(n>0){G.donate(m,n);did=true}}
+  for(const m of Object.keys(S.mats)){const n=(S.mats[m]||0)-(KEEP[m]||0)-(S.nest==="S"&&S.scars.length&&(m==="無名魔核"||m==="草")?5:0);if(n>0){G.donate(m,n);did=true}}
   const ti=S.items.findIndex(i=>i.k==="tool"&&i.n!=="背包");if(ti>=0){G.donateItem(ti);did=true}
   {const wl=S.eq.武器?G.gIdx(S.eq.武器.lv):-1;const cores=S.items.filter(i=>i.k==="core");   /* 用不到的魔核、部位、白字捐掉（留同級最高的兩顆） */
    const di=S.items.findIndex(i=>i.k==="part"||(i.k==="core"&&G.gIdx(i.lv)<wl&&cores.length>2)||(i.k==="gear"&&!i.mg&&S.items.filter(x=>x.k==="gear"&&!x.mg).length>4));if(di>=0){G.donateItem(di);did=true}}
@@ -112,7 +112,7 @@ function play(idx){
     const sp=G.specialHere();if(sp&&S.hp>=G.hpMax()*.8&&Math.random()<.5){const P=G.placeOf();const tier=P.kind==="hostile"?P.tier:P.kind==="dungeon"?(P.tier||2)+((S.dun[P.n]||{}).fl||0):(S.maze.best||0);
       if(tier<=G.gIdx(S.lv)){W.special=(W.special||0)+1;G.startSpecial();continue}}
     if(S.nest==="S"&&S.scars.length){if(S.items.some(i=>i.k==="cure")){G.useCure(S.scars[S.scars.length-1]);continue}
-      if((S.mats.魔核||0)>=5&&(S.mats.草||0)>=5&&!G.makeCure().err)continue;}
+      if((S.mats.無名魔核||0)>=5&&(S.mats.草||0)>=5&&!G.makeCure().err)continue;}
     if(Math.random()<.15&&S.mp>=3){const sk=S.skills.filter(s=>s.today<3);if(sk.length){
       const k=Math.min(sk.length,1+Math.floor(Math.random()*2));const ss=sk.slice(0,k).map(s=>s.n);
       const objs=[{t:"place",n:S.at},...S.seen.filter(x=>!x.used).map(x=>({t:"seen",n:x.n}))];
@@ -126,7 +126,7 @@ function play(idx){
     if(!S.eq.鞋子&&has({草:2})){act({act:"craft",craft:"草鞋"});continue}
     if(!full&&S.items.filter(i=>i.k==="escape").length<2&&has({草:2,骨頭:1})){act({act:"craft",craft:"逃跑粉"});continue}
     if(full){}
-    else if(S.items.filter(i=>i.k==="potion").length<2&&has({草:2,魔核:1})){act({act:"craft",craft:"紅藥水"});continue}
+    else if(S.items.filter(i=>i.k==="potion").length<2&&has({草:2,無名魔核:1})){act({act:"craft",craft:"紅藥水"});continue}
     else if(S.items.filter(i=>i.k==="potion").length<2&&has({草:3})){act({act:"craft",craft:"草藥膏"});continue}
     else if(gearN<6&&has({木材:2,草:2})){act({act:"craft",craft:"短弓"});continue}
     if(S.places.length<G.PLACES.length&&Math.random()<.15){act({act:"explore"});continue}

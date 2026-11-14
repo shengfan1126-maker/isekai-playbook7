@@ -191,7 +191,7 @@ function payables(q){
 /* 自動挑（AI 或「＋」按鈕）：材料先，再背包的白字、藥，最後背包的魔法物品；不自動動身上的東西 */
 function autoPay(q,n){
   const L=payables(q),out=[];
-  const order=[x=>x.t==="mat"&&!["魔核","魔晶","礦石"].includes(x.n),x=>x.t==="mat",x=>x.t==="item"&&!x.it.mg&&x.it.k!=="tool",x=>x.t==="item"&&x.it.mg];
+  const order=[x=>x.t==="mat"&&!["無名魔核","魔晶","礦石"].includes(x.n),x=>x.t==="mat",x=>x.t==="item"&&!x.it.mg&&x.it.k!=="tool",x=>x.t==="item"&&x.it.mg];
   const left={};MATS.forEach(m=>left[m]=S.mats[m]||0);
   for(const f of order)for(const x of L){if(out.length>=n)return out;if(!f(x))continue;
     if(x.t==="mat"){while(left[x.n]>0&&out.length<n){left[x.n]--;out.push({t:"mat",n:x.n})}}
@@ -257,7 +257,7 @@ const relMult=race=>relOf(race)>=0?1.5:2;
 const villageAt=()=>{const P=placeOf();return P&&P.kind==="village"?P:null};
 function villageGift(kind){const P=villageAt();if(!P)return {err:"這裡不是村落"};const r=P.race;if(relOf(r)>=0)return {err:"他們最多只願意對你中立，送禮也沒用了"};
   if(kind==="gold"){if(S.gold<VILLAGE_PRICE.gift)return {err:`要 ${VILLAGE_PRICE.gift} 金幣`};S.gold-=VILLAGE_PRICE.gift}
-  else{if((S.mats.魔核||0)<2)return {err:"要魔核 ×2"};S.mats.魔核-=2}
+  else{if((S.mats.無名魔核||0)<2)return {err:"要無名魔核 ×2"};S.mats.無名魔核-=2}
   S.rel[r]=relOf(r)+1;log(`你給${P.n}送了禮。${r}的態度變成「${REL_WORD[S.rel[r]]}」，但還是皺著眉頭。`,"act");advance(1);return {ok:true}}
 function villageLang(){const P=villageAt();if(!P)return {err:"這裡不是村落"};const R=RACES[P.race];
   if(relOf(P.race)<-1)return {err:"他們敵視你，連話都不跟你說。先送禮"};if(knowsLang(R.lang))return {err:"已經會了"};
@@ -331,7 +331,7 @@ function specialWin(en,out,big){
   if(en.dun){const d=S.dun[en.dun];d.fl++;const g=5*(li+1);S.gold+=g;out.gain.push(`金幣 ${g}`);
     if(rand()<.7||big)gainItem(genMagic(lv),out);
     out.lines.push(d.fl>=d.max?`寶箱打開了。${en.dun}最深的一層也清空了，這裡空了。`:`寶箱打開了。往下還有 ${d.max-d.fl} 層。`);return}
-  if(en.maze){const f=en.maze;S.maze.best=Math.max(S.maze.best||0,f);addMat("魔核",f);out.gain.push(`魔核×${f}`);
+  if(en.maze){const f=en.maze;S.maze.best=Math.max(S.maze.best||0,f);addMat("無名魔核",f);out.gain.push(`魔核×${f}`);
     if(f>=4){addMat("魔晶",f-3);out.gain.push(`魔晶×${f-3}`)}
     if(rand()<.15+.08*f+(big?.2:0))gainItem(genMagic(lv,null,f>=6&&rand()<.3),out);   /* 第 6～7 層有機會出傳說級 */
     out.lines.push(`第 ${f} 層打通了。迷宮的牆慢慢合上，魔物會再長出來。`)}

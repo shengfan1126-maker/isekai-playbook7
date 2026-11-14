@@ -11,14 +11,14 @@ const SKILL_PER_DAY=3, SKILL_SLOTS=9;
 const STORE_MAX={F:20,E:25,D:30,C:35,B:40,A:50,S:50};
 /* 據點升級要的點數（升到 E D C B A S）；捐物資換點數 */
 const NEST_PTS=[0,20,80,250,500,900,1500];
-const PTS_OF={獸皮:2,魔核:4,礦石:2,魔晶:8};const ITEM_PTS=3;
+const PTS_OF={獸皮:2,無名魔核:4,礦石:2,魔晶:8};const ITEM_PTS=3;
 const FAC_SLOTS=lvIdx=>Math.min(6,lvIdx+1);
-const SELL={木材:1,石片:1,草:1,獸皮:2,骨頭:1,生肉:1,熟肉:2,野果:1,魔核:5,礦石:3,魔晶:12};
-const BUY={木材:3,石片:3,草:2,獸皮:6,骨頭:4,熟肉:5,魔核:16,鐵劍:24,紅藥水:14,藍藥水:14};
+const SELL={木材:1,石片:1,草:1,獸皮:2,骨頭:1,生肉:1,熟肉:2,野果:1,無名魔核:5,礦石:3,魔晶:12};
+const BUY={木材:3,石片:3,草:2,獸皮:6,骨頭:4,熟肉:5,無名魔核:16,鐵劍:24,紅藥水:14,藍藥水:14};
 const HOURS={gather:2,explore:3,hunt:1,fight:1,retreat:1,craft:2,combo:1,shelter:2,rest:2,move:2,fuse:4,raid:0,boss:0};
 const ACT_NAME={gather:"採集",explore:"探索",hunt:"狩獵",fight:"戰鬥",retreat:"撤退",craft:"製作",combo:"組合",shelter:"占用岩穴",rest:"休息",move:"移動",sleep:"睡覺",fuse:"整合",raid:"迎擊"};
 const ACT_CAT={gather:"生存",explore:"機動",fight:"戰鬥",craft:"製作",retreat:"機動",shelter:"生存"};
-const ITEM_E={木材:["木"],石片:["切割","硬化"],草:["木"],獸皮:["包覆"],骨頭:["硬化"],生肉:["木"],熟肉:["火"],野果:["木"],魔核:["魔力"],礦石:["土","硬化"],魔晶:["魔力","光"],
+const ITEM_E={木材:["木"],石片:["切割","硬化"],草:["木"],獸皮:["包覆"],骨頭:["硬化"],生肉:["木"],熟肉:["火"],野果:["木"],無名魔核:["魔力"],礦石:["土","硬化"],魔晶:["魔力","光"],
   石刀:["切割"],石斧:["切割","重量"],石矛:["切割"],鐵劍:["切割","硬化"],投石索:["移動"],短弓:["木","切割"],木盾:["木","硬化"],石袋:["土"],箭矢袋:["包覆"],
   皮甲:["包覆","硬化"],皮帽:["包覆"],草鞋:["木"],水袋:["水","包覆"],背包:["包覆"],草藥膏:["木"],紅藥水:["木","火"],藍藥水:["水","魔力"],紫藥水:["魔力"]};
 const FUSED_NAME={魔法:"雜糅魔法",戰鬥:"亂戰技",生存:"荒野生活術",機動:"野獸直覺",製作:"工匠心得",社交:"話術",天生:"偷學心得"};
@@ -301,7 +301,7 @@ function doHunt(q,out){
 function loot(out,big,extra){   /* extra：獵人、逆轉多拿的那一份，只有東西，不再給存在值 */
   const en=S.enc,ei=gIdx(en.lv),k=big?2:1;
   addMat("生肉",k);addMat("獸皮",1);addMat("骨頭",1);out.gain.push(`生肉×${k}`,"獸皮","骨頭");
-  if(rand()<.15+.08*ei){addMat("魔核",1);out.gain.push("魔核")}
+  if(rand()<.15+.08*ei){addMat("無名魔核",1);out.gain.push("無名魔核")}
   if(!extra){queueLoot(en,big?2:1);out.lines.push(`可以拆解${en.n}了（${big?"三選二":"三選一"}）。`)}   /* v5.15 */
   const ex=!extra&&ei>=pg()-1?1+Math.max(0,ei-pg())+(big?1:0):0;
   if(ex)out.gain.push(`存在值+${gainExist(ex)}`);
@@ -656,9 +656,9 @@ function logDonate(what,p){const l=S.log[S.log.length-1];
 const devoteMult=()=>mgCount("devote")?1.5:1;
 function donate(m,n){n=Math.min(n,S.mats[m]||0);if(n<1)return {err:"沒有"};S.mats[m]-=n;const p=Math.ceil(n*ptsOf(m)*devoteMult());S.pts+=p;logDonate([[m,n]],p);return {ok:true}}
 function donateItem(i){const it=S.items[i];if(!it)return {err:"沒有"};S.items.splice(i,1);const p=Math.ceil(ITEM_PTS*devoteMult());S.pts+=p;logDonate([[it.n,1]],p);return {ok:true}}
-/* 捐到夠升下一級：先捐骨頭、獸皮、魔核，再木材、石片、草，最後才是食物（留 5 份） */
+/* 捐到夠升下一級：先捐骨頭、獸皮、無名魔核，再木材、石片、草，最後才是食物（留 5 份） */
 function donateToNext(){const b=canBuild();if(!b||S.pts>=b.need)return {err:"已經夠了"};
-  const order=["骨頭","獸皮","魔核","木材","石片","草",...FOODS];
+  const order=["骨頭","獸皮","無名魔核","木材","石片","草",...FOODS];
   for(const m of order){if(S.pts>=b.need)break;const keep=FOODS.includes(m)?Math.max(0,5-(foodCount()-(S.mats[m]||0))):0;
     let have=(S.mats[m]||0)-Math.max(0,keep);if(have<1)continue;const n=Math.min(have,Math.ceil((b.need-S.pts)/ptsOf(m)));if(n>0)donate(m,n)}
   return S.pts>=b.need?{ok:true}:{err:`還差 ${b.need-S.pts} 點`}}
@@ -746,8 +746,8 @@ function raidStep(win,out){
       msg=`你打倒了魔王。沒有人知道是誰做的。據點的火慢慢熄了，你一個人消失在歷史的長河裡。`}
     out.lines.push(msg);log(msg,"end");
     return}
-  const g=gIdx(R.kind),core=g,hide=2*g;addMat("魔核",core);addMat("獸皮",hide);
-  out.lines.push(`守住了！${R.kind} 級據點站穩了。`);out.gain.push(`魔核×${core}`,`獸皮×${hide}`);
+  const g=gIdx(R.kind),core=g,hide=2*g;addMat("無名魔核",core);addMat("獸皮",hide);
+  out.lines.push(`守住了！${R.kind} 級據點站穩了。`);out.gain.push(`無名魔核×${core}`,`獸皮×${hide}`);
   gainItem(genMagic(R.kind,null,R.kind==="S"),out);   /* 頭目掉的魔法物品；A→S 掉傳說級 */
   offerFac();
   if(S.hour>=24)night(false);
@@ -768,9 +768,9 @@ function moveBase(to){
   relocate(to,"");advance(6*(1+scarN("腿")));return {ok:true};
 }
 /* 萬靈藥：據點 S 級後開發，治好一處捨身傷 */
-const CURE_COST={魔核:5,草:5};
+const CURE_COST={無名魔核:5,草:5};
 function makeCure(){if(S.nest!=="S")return {err:"據點要 S 級才能開發萬靈藥"};
-  if(!Object.entries(CURE_COST).every(([m,n])=>(S.mats[m]||0)>=n))return {err:"材料不夠（魔核 5、草 5）"};if(bagFull())return {err:"背包滿了"};
+  if(!Object.entries(CURE_COST).every(([m,n])=>(S.mats[m]||0)>=n))return {err:"材料不夠（無名魔核 5、草 5）"};if(bagFull())return {err:"背包滿了"};
   Object.entries(CURE_COST).forEach(([m,n])=>S.mats[m]-=n);S.items.push({n:"萬靈藥",k:"cure",lv:"S"});log("開發出一瓶萬靈藥。","good");advance(4);return {ok:true}}
 function useCure(part){const i=S.items.findIndex(x=>x.k==="cure");if(i<0)return {err:"沒有萬靈藥"};const j=S.scars.indexOf(part);if(j<0)return {err:"這個部位沒有捨身傷"};
   S.items.splice(i,1);S.scars.splice(j,1);log(`喝下萬靈藥，${part}的捨身傷好了。`,"good");return {ok:true}}
