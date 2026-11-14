@@ -521,7 +521,7 @@ function wakeBuff(H){
   const L=gIdx(H.lv),got=[];
   if(L>=1){S.buff.first=1;got.push("第一件事 +1")}
   if(L>=2){S.buff.hurt=1;got.push("第一次受傷不扣 HP")}
-  if(L>=3){S.mp=mpSleepCap()+2;got.push("MP 多 2")}
+  if(L>=3){S.mp=mpSleepCap()+2;S.mpBonus=2;got.push("MP 多 2")}
   if(L>=4){S.buff.fight=1;got.push("第一場戰鬥少付 1 項")}
   if(L>=6){S.buff.all=1;got.push("今天每件事少付 1 項")}
   return `在${H.at}的${houseName(H.lv)}（${H.lv}）睡飽了${got.length?"："+got.join("、"):""}。`;
@@ -598,7 +598,9 @@ function useEscape(){
 /* 鍛鍊也能練倉庫裡的技能 */
 
 /* ───── 時間與夜晚 ───── */
-function advance(h){if(typeof bagEgg==="function")bagEgg();S.hour+=h;if(S.hour>=24&&!S.over&&!S.raid)night(false)}
+/* v5.29：裝備壞了、賣了、脫下，HP、MP 上限變低時，現在的值跟著降（房子給的 MP 多 2 照留） */
+function clampVitals(){if(!S||S.over)return;if(S.mp<=mpMax())S.mpBonus=0;S.mp=Math.min(S.mp,mpMax()+(S.mpBonus||0));S.hp=Math.min(S.hp,hpMax())}
+function advance(h){clampVitals();if(typeof bagEgg==="function")bagEgg();S.hour+=h;if(S.hour>=24&&!S.over&&!S.raid)night(false)}
 function night(voluntary){
   const lines=[];if(!voluntary&&mgCount("calm")){voluntary=true;lines.push("安眠：倒下就睡著了，睡得很好。")}
   /* 吃 */
@@ -727,7 +729,7 @@ function startRaid(kind){
   nextBattle();
 }
 function nextBattle(){const R=S.raid,b=R.list[R.i];S.enc=Object.assign({raid:true},b);
-  log(`第 ${R.i+1}/${R.list.length} 場：${b.dir}，${b.n}（${b.lv}${b.king?"・BP 99":""}）${b.army?"，大軍壓過來":`，牠會「${b.t.n}」（獨特技巧，學不來）`}。`,"bad")}
+  log(`第 ${R.i+1}/${R.list.length} 場：${b.dir}，${b.n}（${b.lv}${b.king?"・BP 99":""}）${b.army?"，大軍壓過來":`，牠會「${b.t.n}」`}。`,"bad")}
 function raidStep(win,out){
   const R=S.raid,b=R.list[R.i];S.enc=null;
   if(win&&out.res==="big"&&R.lost>0&&mgOn("vorpal").length){R.lost--;out.lines.push("逆轉：這一擊抵銷了之前輸掉的一場。")}

@@ -64,7 +64,7 @@ function renderMenu(){
   m.innerHTML=B.map(([k,t,d])=>`<button data-k="${k}" ${(d||(lock&&!info.includes(k)&&!(k==="potion"&&potionOk)))?"disabled":""}>${esc(t)}</button>`).join("");
   m.querySelectorAll("button").forEach(x=>x.onclick=()=>menuClick(x.dataset.k));
 }
-function refresh(){save();renderStatus();renderPanel();renderSay();renderMenu();renderLog()}
+function refresh(){clampVitals();save();renderStatus();renderPanel();renderSay();renderMenu();renderLog()}
 
 /* ───── 判定面板 ───── */
 function openDraft(it,said){draft={it:Object.assign({skills:[],obj:{t:"none",n:""},move:"",goal:"",adv:[],dis:[]},it),p:{hp:0,mp:0,time:0,item:0,items:[]},shesh:false,said:said||""};toast="";
@@ -102,7 +102,7 @@ function renderPanel(){
       S.facPick.map(n=>{const f=facDef(n);return `<p><button data-fp="${esc(n)}"><b>${esc(n)}</b>　對口：${esc(f.cat)}<br><span class="note">${esc(f.d)}${facHint(n)?"<br>"+esc(facHint(n)):""}</span></button></p>`}).join("")+`</div>`;
     P.querySelectorAll("[data-fp]").forEach(b=>b.onclick=()=>{pickFac(b.dataset.fp);refresh()});return}
   if(S.enc&&!draft){const R=S.enc.raid,E=S.enc,boss=R&&S.raid&&S.raid.kind==="boss";
-    const rinfo=R?`${esc(E.dir)}。${E.army?"大軍，沒有技巧可學。":`牠會「${esc(E.t.n)}」（升級戰頭目的獨特技巧，學不來）。`}多打一：劣勢 ${E.dis||0} 條，設施擋掉 ${Math.min(E.dis||0,facBlock())} 條。這是關鍵戰（淨優勢最多 0），不能付「多花時間」，「用掉東西」只能用背包裡的物品、一場一件。${boss?"魔王戰逃不掉。":"逃走＝放棄據點（設施全毀、F 級重來、物資剩一半）。"}`:
+    const rinfo=R?`${esc(E.dir)}。${E.army?"大軍壓過來。":`牠會「${esc(E.t.n)}」。`}多打一：劣勢 ${E.dis||0} 條，設施擋掉 ${Math.min(E.dis||0,facBlock())} 條。這是關鍵戰（淨優勢最多 0），不能付「多花時間」，「用掉東西」只能用背包裡的物品、一場一件。${boss?"魔王戰逃不掉。":"逃走＝放棄據點（設施全毀、F 級重來、物資剩一半）。"}`:
       `牠會「${esc(E.t.n)}」。打、用組合、或撤退（撤退也要付代價，例如丟下東西）。${gIdx(E.lv)-pg()>=2?`<br><b>牠比你高 ${gIdx(E.lv)-pg()} 級，看起來打不贏。</b>${S.items.some(x=>x.k==="escape")?"撒逃跑粉就能脫身，不用付代價。":"沒有逃跑粉了（草 2、骨頭 1 可以做）。"}`:""}`;
     const ee=(E.e||[]).length?`屬性：${E.e.join("・")}${(E.e||[]).map(x=>Object.keys(COUNTER).filter(k=>COUNTER[k].includes(x))).flat().length?`（怕：${uniq(E.e.flatMap(x=>Object.keys(COUNTER).filter(k=>COUNTER[k].includes(x)))).join("、")}）`:""}。`:"";
     const ft=R?[]:foeTags(),fa=R?"":foeAtk();const ftx=ft.length||fa?`${ft.length?`特性：${ft.map(t=>`${t}（${ART_FOE[t]||""}）`).join("；")}。`:""}${fa?`攻擊帶「${fa}」${ELEMS.includes(fa)?`（有避${fa}的魔法裝備，輸了傷害減半）`:""}。`:""}`:"";
