@@ -4,8 +4,8 @@
    dbg：印出第一局每一場升級戰的判定 */
 const fs=require("fs"),vm=require("vm");
 const ctx=vm.createContext({console,Math});
-vm.runInContext(["data.js","game.js","world.js","combo.js"].map(f=>fs.readFileSync(__dirname+"/"+f,"utf8")).join("\n")+
-  "\nthis.G={newGame,planOf,exec,sleep,startCh2,failChoice,get S(){return S},hpMax,placeOf,gIdx,canExchange,drawChoices,exchange,RECIPES,MOVES,PLACES,canBuild,build,canEvolve,evolve,usePotion,bpOf,hasItem,MP_MAX,mpMax,makeCure,useCure,pickFac,facPut,startBoss,donate,donateItem,FAC,GRADES,facBlock,hasWeapon,startSpecial,specialHere,baseable,payables,equip,canEquip,travel,homeAt,useEscape,choosePick};",ctx);
+vm.runInContext(["data.js","game.js","world.js","combo.js","gear.js"].map(f=>fs.readFileSync(__dirname+"/"+f,"utf8")).join("\n")+
+  "\nthis.G={newGame,planOf,exec,sleep,startCh2,failChoice,get S(){return S},hpMax,placeOf,gIdx,canExchange,drawChoices,exchange,RECIPES,MOVES,PLACES,canBuild,build,canEvolve,evolve,usePotion,bpOf,hasItem,MP_MAX,mpMax,makeCure,useCure,pickFac,facPut,startBoss,donate,donateItem,FAC,GRADES,facBlock,hasWeapon,startSpecial,specialHere,baseable,payables,equip,canEquip,travel,homeAt,useEscape,choosePick,takeLoot,skipLoot,combineCore,whiteRefs,trainCore,mergeCores};",ctx);
 const G=ctx.G;
 if(process.env.DIS)vm.runInContext(`Object.assign(ARMY_DIS,${process.env.DIS})`,ctx);
 const SHESH=process.argv.includes("shesh"),DBG=process.argv.includes("dbg");
@@ -21,8 +21,8 @@ const W={raidBattles:0,paid:0,takeLoss:0,shesh:0,flee:0,potion:0};
 function raidBattle(){
   const S=G.S,R=S.raid,s=bestFight();
   if(S.hp<G.hpMax()*.5&&G.hasItem("potion")){W.potion++;G.usePotion();if(!S.raid)return}
-  const it={act:"fight",weapon:true,skills:s&&S.mp>=1?[s.n]:[]};
-  const q=G.planOf(it);W.raidBattles++;
+  let it={act:"fight",weapon:false,skills:s&&S.mp>=1?[s.n]:[]};
+  let q=G.planOf(it);if(q.weakWeapon&&q.need>maxPay(q)){it.weapon=true;q=G.planOf(it)}else if(!q.weakWeapon){it.weapon=true;q=G.planOf(it)}W.raidBattles++;
   if(DBG&&dbgOn)console.log(`  第${S.day}天 ${R.kind}戰 ${R.i+1}/${R.list.length} 你${S.lv} vs ${S.enc.n}${S.enc.lv}｜net ${q.net} need ${q.need}｜caps ${JSON.stringify(q.caps)} HP ${S.hp}/${G.hpMax()} MP ${S.mp} 物品${S.items.length}｜輸${R.lost}/${R.max}｜${q.notes.join("；")}`);
   const safeHp=S.hp-q.unit;           // 輸了還活著嗎
   const lastChance=R.lost>=R.max||S.enc.king;
@@ -60,7 +60,24 @@ function baseChores(){
   let did=false;
   for(const m of Object.keys(S.mats)){const n=(S.mats[m]||0)-(KEEP[m]||0)-(S.nest==="S"&&S.scars.length&&(m==="魔核"||m==="草")?5:0);if(n>0){G.donate(m,n);did=true}}
   const ti=S.items.findIndex(i=>i.k==="tool"&&i.n!=="背包");if(ti>=0){G.donateItem(ti);did=true}
+  {const wl=S.eq.武器?G.gIdx(S.eq.武器.lv):-1;const cores=S.items.filter(i=>i.k==="core");   /* 用不到的魔核、部位、白字捐掉（留同級最高的兩顆） */
+   const di=S.items.findIndex(i=>i.k==="part"||(i.k==="core"&&G.gIdx(i.lv)<wl&&cores.length>2)||(i.k==="gear"&&!i.mg&&S.items.filter(x=>x.k==="gear"&&!x.mg).length>4));if(di>=0){G.donateItem(di);did=true}}
   return did;
+}
+/* 魔核比身上的武器高：拿一件白字武器組合（沒有就先做短弓），換上 */
+function combineStep(){
+  const S=G.S,w=S.eq.武器,wl=w?G.gIdx(w.lv):-1;
+  const ci=S.items.map((it,i)=>({it,i})).filter(x=>x.it.k==="core"&&G.gIdx(x.it.lv)>wl).sort((a,b)=>G.gIdx(b.it.lv)-G.gIdx(a.it.lv))[0];
+  if(!ci){const cs=S.items.map((it,i)=>({it,i})).filter(x=>x.it.k==="core");   /* 同級兩顆：合成升級 */
+    for(const a of cs){const b=cs.find(x=>x!==a&&x.it.lv===a.it.lv);if(b&&a.it.lv!=="S"&&G.gIdx(a.it.lv)+1>wl){G.mergeCores(a.i,b.i);W.merge=(W.merge||0)+1;return true}}
+    return false}
+  const ref=G.whiteRefs().find(x=>x.it.slot==="武器");
+  if(!ref){if(has({木材:2,草:2})){act({act:"craft",craft:"短弓"});return true}return false}
+  const r=G.combineCore(ci.i,ref.ref);if(r.err)return false;W.combine=(W.combine||0)+1;
+  const it=r.it;if(S.eq.武器!==it){const k=S.items.indexOf(it);if(k>=0)G.equip(k)}
+  if(G.gIdx(S.lv)<=1){const g=G.gIdx(it.lv);if(g>(W.bestAtE||-1)){W.bestAtE=g;W.bestAtEDay=S.day}}
+  S.stats.magicW=S.stats.magicW||[];S.stats.magicW.push({day:S.day,me:S.lv,w:it.lv});
+  return true;
 }
 function readyToBuild(){const S=G.S;return S.hp>=G.hpMax()*.9&&S.mp>=G.mpMax()-1&&S.hour<=9&&G.hasWeapon()&&G.hasItem("potion")&&G.payables({raid:true}).length>=4}
 function play(idx){
@@ -72,8 +89,10 @@ function play(idx){
       if(t==="boss"){G.startBoss();continue}
     }
     if(S.pick&&!S.enc){G.choosePick(0);if(S.pick)S.pick=null;continue}   /* 三選一：選第一個 */
+    if(S.lootQ&&S.lootQ.length&&!S.enc){const L=S.lootQ[0];const ci=L.ch.findIndex(o=>o.it&&o.it.k==="core");G.takeLoot(ci>=0?ci:0);if(S.lootQ[0]===L)G.skipLoot();W.loot=(W.loot||0)+1;continue}
+    if(!S.enc&&!S.raid&&!S.pending&&S.hour<=18&&combineStep())continue;
     if(S.raid&&S.enc){raidBattle();continue}
-    if(S.enc){const d=G.gIdx(S.enc.lv)-G.gIdx(S.lv);const s=bestFight();const q=G.planOf({act:"fight",weapon:true,skills:s&&S.mp>=1?[s.n]:[]});
+    if(S.enc){const d=G.gIdx(S.enc.lv)-G.gIdx(S.lv);const s=bestFight();let q=G.planOf({act:"fight",weapon:false,skills:s&&S.mp>=1?[s.n]:[]});if(!q.weakWeapon||q.need>maxPay(q))q=G.planOf({act:"fight",weapon:true,skills:s&&S.mp>=1?[s.n]:[]});
       if(d<=1&&q.need<=maxPay(q)&&S.hp>q.unit*2)G.exec(q,pay(q,q.need));else if(S.items.some(i=>i.k==="escape")){W.powder=(W.powder||0)+1;G.useEscape()}else act({act:"retreat"},null);continue}
     if(S.hp<G.hpMax()*.4&&G.hasItem("potion")){G.usePotion();continue}
     if(S.hour>=20||S.hp<G.hpMax()*.4){const h=G.homeAt();if(h&&S.at!==h)G.travel(h,true);else G.sleep();continue}   /* v5.8：回據點睡才睡得飽 */
@@ -97,14 +116,13 @@ function play(idx){
       const k=Math.min(sk.length,1+Math.floor(Math.random()*2));const ss=sk.slice(0,k).map(s=>s.n);
       const objs=[{t:"place",n:S.at},...S.seen.filter(x=>!x.used).map(x=>({t:"seen",n:x.n}))];
       if(act({act:"combo",skills:ss,obj:objs[Math.floor(Math.random()*objs.length)],move:G.MOVES[Math.floor(Math.random()*G.MOVES.length)].n},1))continue}}
-    const full=S.items.length>=8+(S.items.some(i=>i.n==="背包")?4:0);
+    const full=false;   /* v5.15：背包沒有上限 */
     const gearN=S.items.filter(i=>i.k==="gear"&&!i.mg).length;
     if(!S.eq.武器&&has({木材:2,草:2})){act({act:"craft",craft:"短弓"});continue}
     if(S.eq.武器&&!S.eq.副手&&/遠程/.test(S.eq.武器.wt||"")&&has({獸皮:1,木材:1})){act({act:"craft",craft:"箭矢袋"});continue}
     if(!S.eq.衣服&&has({獸皮:2})){act({act:"craft",craft:"皮甲"});continue}
     if(!S.eq.頭&&has({獸皮:1})){act({act:"craft",craft:"皮帽"});continue}
     if(!S.eq.鞋子&&has({草:2})){act({act:"craft",craft:"草鞋"});continue}
-    if(!full&&!S.items.some(i=>i.n==="背包")&&has({獸皮:1,草:2})){act({act:"craft",craft:"背包"});continue}
     if(!full&&S.items.filter(i=>i.k==="escape").length<2&&has({草:2,骨頭:1})){act({act:"craft",craft:"逃跑粉"});continue}
     if(full){}
     else if(S.items.filter(i=>i.k==="potion").length<2&&has({草:2,魔核:1})){act({act:"craft",craft:"紅藥水"});continue}
@@ -136,4 +154,6 @@ console.log("第一次就守住："+["E","D","C","B","A","S","boss"].map(k=>{con
 console.log("最後據點：",JSON.stringify(rows.reduce((o,s)=>(o[s.nest]=(o[s.nest]||0)+1,o),{})),"；最後等級：",JSON.stringify(rows.reduce((o,s)=>(o[s.lv]=(o[s.lv]||0)+1,o),{})),"；傷殘中位數",med(rows.map(s=>s.scars.length)));
 console.log("捨身傷（結束時）：",JSON.stringify(rows.reduce((o,s)=>(o[s.scars.length]=(o[s.scars.length]||0)+1,o),{})),"；捨身次數中位數",med(rows.map(s=>s.stats.shesh||0)));
 console.log("機器人：",JSON.stringify(W));
+{const firstAt=g=>rows.map(s=>(s.stats.magicW||[]).find(x=>G.gIdx(x.w)>=g)).filter(Boolean);
+ ["D","C","B","A"].forEach(L=>{const g=G.GRADES.indexOf(L),a=firstAt(g);console.log(`魔核組合出 ${L} 級以上武器：${a.length}/${rows.length} 局，第一次在第 ${med(a.map(x=>x.day))} 天（當時自己 ${JSON.stringify(a.reduce((o,x)=>(o[x.me]=(o[x.me]||0)+1,o),{}))}）`)})}
 console.log("裝備（第一局結束）：",JSON.stringify(Object.fromEntries(Object.entries(rows[0].eq).map(([k,v])=>[k,v&&v.n]))),"；魔法物品數中位數",med(rows.map(s=>s.items.concat(Object.values(s.eq)).filter(x=>x&&x.mg).length)),"；打下的敵對據點中位數",med(rows.map(s=>s.cleared.length)),"；迷宮最深中位數",med(rows.map(s=>s.maze.best)));

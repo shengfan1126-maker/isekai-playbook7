@@ -57,8 +57,9 @@ const hasItem=k=>S.items.some(i=>i.k===k);
 const hasWeapon=()=>!!(S.eq&&S.eq.武器);
 const hpUnit=key=>Math.max(1,Math.ceil(hpMax()/4*(key&&!(S.eq&&mgOn("fort").length)?1.5:1)*(S.eq?dmgMult():1)));
 const nestIdx=()=>S.nest==null?-1:gIdx(S.nest);
-const bagMax=()=>8+(S.items.some(i=>i.n==="背包")?4:0);
-const bagFull=()=>S.items.length>=bagMax();
+const bagMax=()=>Infinity;   /* v5.15：異世界人專屬，背包沒有上限 */
+const bagFull=()=>false;
+const bagWord=()=>`${S.items.length}/∞`;
 /* 存在值滿了自動進化，多出來的帶到下一級；進化當下 HP、MP 回滿 */
 const gainExist=n=>{S.exist+=n;autoEvolve();return n};
 /* v5.10：玩家等級＝據點到過的最高等級（搬家、被攻破都不掉）；第一章還沒有據點＝F。
@@ -181,7 +182,7 @@ function planOf(it){
   if(!["combo","hunt","move","rest"].includes(act)&&sks[0]&&!q.art){const s=sks[0];
     if(usesLeft(s)<1||(!s.fromItem&&S.mp<1))q.notes.push(`【${s.n}】今天用完或 MP 不足，無效`);
     else{q.useSkill=s;q.mand.mp=s.fromItem?0:1;
-      if(gIdx(s.lv)>=Math.min(q.eIdx,pg()+1)){net+=1;q.notes.push(`【${s.n}】+1`)}else q.notes.push(`【${s.n}】階層不夠`);
+      if(s.fromItem||gIdx(s.lv)>=Math.min(q.eIdx,pg()+1)){net+=1;q.notes.push(`【${s.n}】+1${s.fromItem&&q.eIdx>gIdx(s.lv)&&S.enc?"（物品比對手低：打完會壞）":""}`)}else q.notes.push(`【${s.n}】階層不夠`);
       if(ACT_CAT[act]&&s.c.includes(ACT_CAT[act])){net+=1;q.notes.push("技能對路 +1")}}}
   if(q.raid){const d=S.enc.dis||0,b=Math.min(d,facBlock());
     if(d){net-=d-b;q.notes.push(`多打一 −${d}${b?`（設施擋掉 ${b}）`:""}`)}
@@ -299,6 +300,7 @@ function loot(out,big,extra){   /* extra：獵人、逆轉多拿的那一份，�
   const en=S.enc,ei=gIdx(en.lv),k=big?2:1;
   addMat("生肉",k);addMat("獸皮",1);addMat("骨頭",1);out.gain.push(`生肉×${k}`,"獸皮","骨頭");
   if(rand()<.15+.08*ei){addMat("魔核",1);out.gain.push("魔核")}
+  if(!extra){queueLoot(en,big?2:1);out.lines.push(`可以拆解${en.n}了（${big?"三選二":"三選一"}）。`)}   /* v5.15 */
   const ex=!extra&&ei>=pg()-1?1+Math.max(0,ei-pg())+(big?1:0):0;
   if(ex)out.gain.push(`存在值+${gainExist(ex)}`);
 }
@@ -586,7 +588,7 @@ function useEscape(){
 /* 鍛鍊也能練倉庫裡的技能 */
 
 /* ───── 時間與夜晚 ───── */
-function advance(h){S.hour+=h;if(S.hour>=24&&!S.over&&!S.raid)night(false)}
+function advance(h){if(typeof bagEgg==="function")bagEgg();S.hour+=h;if(S.hour>=24&&!S.over&&!S.raid)night(false)}
 function night(voluntary){
   const lines=[];if(!voluntary&&mgCount("calm")){voluntary=true;lines.push("安眠：倒下就睡著了，睡得很好。")}
   /* 吃 */
@@ -716,6 +718,7 @@ function nextBattle(){const R=S.raid,b=R.list[R.i];S.enc=Object.assign({raid:tru
 function raidStep(win,out){
   const R=S.raid,b=R.list[R.i];S.enc=null;
   if(win&&out.res==="big"&&R.lost>0&&mgOn("vorpal").length){R.lost--;out.lines.push("逆轉：這一擊抵銷了之前輸掉的一場。")}
+  if(win&&!b.army&&!b.king&&R.list.slice(R.i+1).every(x=>x.army||x.king)){queueLoot(b,out.res==="big"?2:1);out.lines.push(`打完可以拆解${b.n}。`)}   /* v5.15：升級戰的頭目也能拆解 */
   if(win){R.won++;const ex=1+Math.max(0,(b.king?7:gIdx(b.lv))-pg())+(out.res==="big"?1:0);out.gain.push(`存在值+${gainExist(ex)}`)}
   else{R.lost++;out.lines.push(`這一場輸了（${R.lost}/${R.max}）。`)}
   if(S.hp<=0&&R.kind==="boss")return;            /* 魔王戰倒下＝死 */

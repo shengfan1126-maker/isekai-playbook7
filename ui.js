@@ -25,7 +25,7 @@ function renderStatus(){
   ${S.raid?`<div class="note bad-t">${S.raid.kind==="boss"?"魔王戰":"升級戰"}：第 ${S.raid.i+1}/${S.raid.list.length} 場，已輸 ${S.raid.lost}/${S.raid.max}（再輸 ${S.raid.max-S.raid.lost+1} 場${S.raid.kind==="boss"?"就完了":"據點被攻破"}）${S.raid.shesh?"，這場已捨身過":""}</div>`:""}
   ${S.ch===1?`<div class="note"><b>目標：建立據點</b>——先有避難所：採集湊木材 3、草 3 →「製作」草棚（或占一個岩穴）。</div><div class="needs">${ck}</div>`:""}
   ${tags.length?`<div class="note bad-t">${tags.join("・")}</div>`:""}
-  <div class="note">存在值 ${S.exist}/${EXIST_MAX(S.lv)}　碎片 ${S.frags.length}　技能 ${S.skills.length}/${SKILL_SLOTS}（倉庫 ${S.store.length}/${STORE_MAX[S.lv]}）　金幣 ${S.gold}　<a href="#" id="stbag">背包 ${S.items.length}/${bagMax()}・食物 ${foodCount()}</a></div>
+  <div class="note">存在值 ${S.exist}/${EXIST_MAX(S.lv)}　碎片 ${S.frags.length}　技能 ${S.skills.length}/${SKILL_SLOTS}（倉庫 ${S.store.length}/${STORE_MAX[S.lv]}）　金幣 ${S.gold}　<a href="#" id="stbag">背包 ${bagWord()}・食物 ${foodCount()}</a></div>
   <div class="note">裝備：${SLOTS.filter(k=>S.eq[k]).map(k=>`${k} ${esc(S.eq[k].n)}${S.eq[k].mg?"✦":""}`).join("・")||"（沒有）"}</div>`;
   bindStatus();
 }
@@ -89,6 +89,11 @@ function renderPanel(){
       `<p><button id="pkre" ${p.re?"disabled":""}>${p.re?"已經重抽過了":"重抽一次"}</button></p></div>`;
     P.querySelectorAll("[data-pk]").forEach(b=>b.onclick=()=>{const r=choosePick(+b.dataset.pk);if(r.err)toast=r.err;refresh()});
     $("pkre").onclick=()=>{const r=rerollPick();if(r.err)toast=r.err;refresh()};return}
+  if(S.lootQ&&S.lootQ.length&&!draft&&!S.enc&&!S.pick){const L=S.lootQ[0];   /* v5.15：拆解 */
+    P.innerHTML=h+`<div class="box"><b>拆解 ${esc(L.from)}（${L.lv}）：${L.k>1?`三選二（還能拿 ${L.k-L.got} 樣）`:"三選一"}</b><br><span class="note">部位能做白字裝備（打字「用鹿角做匕首」），也能捐、賣；魔核能跟白字裝備組合成魔法裝備，或鍛鍊一次學會它的技能。背包沒有上限。</span>`+
+      L.ch.map((o,i)=>`<p><button data-lt="${i}">${esc(lootLabel(o))}</button></p>`).join("")+`<p><button id="ltno">剩下的不要了</button>${S.lootQ.length>1?`　<span class="note">後面還有 ${S.lootQ.length-1} 份</span>`:""}</p></div>`;
+    P.querySelectorAll("[data-lt]").forEach(b=>b.onclick=()=>{const r=takeLoot(+b.dataset.lt);if(r.err)toast=r.err;refresh()});
+    $("ltno").onclick=()=>{skipLoot();refresh()};return}
   if(S.facPick&&!draft&&!S.enc){
     P.innerHTML=h+`<div class="box"><b>蓋一座設施（三選一）</b>　據點 ${S.nest} 級可以有 ${FAC_SLOTS(nestIdx())} 座，現在 ${S.fac.length} 座。<br><span class="note">蓋好後要放一個技能進去才會運作（主角一個人，沒有人手）。每座在運作的設施，升級戰時擋掉 1 條「多打一」的劣勢。</span>`+
       S.facPick.map(n=>{const f=facDef(n);return `<p><button data-fp="${esc(n)}"><b>${esc(n)}</b>　對口：${esc(f.cat)}<br><span class="note">${esc(f.d)}${facHint(n)?"<br>"+esc(facHint(n)):""}</span></button></p>`}).join("")+`</div>`;
@@ -98,7 +103,7 @@ function renderPanel(){
       `牠會「${esc(E.t.n)}」。打、用組合、或撤退（撤退也要付代價，例如丟下東西）。${gIdx(E.lv)-pg()>=2?`<br><b>牠比你高 ${gIdx(E.lv)-pg()} 級，看起來打不贏。</b>${S.items.some(x=>x.k==="escape")?"撒逃跑粉就能脫身，不用付代價。":"沒有逃跑粉了（草 2、骨頭 1 可以做）。"}`:""}`;
     const ee=(E.e||[]).length?`屬性：${E.e.join("・")}${(E.e||[]).map(x=>Object.keys(COUNTER).filter(k=>COUNTER[k].includes(x))).flat().length?`（怕：${uniq(E.e.flatMap(x=>Object.keys(COUNTER).filter(k=>COUNTER[k].includes(x)))).join("、")}）`:""}。`:"";
     const ft=R?[]:foeTags(),fa=R?"":foeAtk();const ftx=ft.length||fa?`${ft.length?`特性：${ft.map(t=>`${t}（${ART_FOE[t]||""}）`).join("；")}。`:""}${fa?`攻擊帶「${fa}」${ELEMS.includes(fa)?`（有避${fa}的魔法裝備，輸了傷害減半）`:""}。`:""}`:"";
-    const ww=S.eq.武器,wf=E.king?7:gIdx(E.lv);const wwarn=ww&&gIdx(ww.lv)<Math.min(6,wf)-1?`<br><b>你的${esc(ww.n)}是 ${ww.lv} 級，比牠低兩級以上：拿來打會壞（不能修）。</b>判定時不勾「用」就不會壞，只是少 +1。`:"";
+    const ww=S.eq.武器,wf=E.king?7:gIdx(E.lv);const wwarn=ww&&gIdx(ww.lv)<Math.min(6,wf)?`<br><b>你的${esc(ww.n)}是 ${ww.lv} 級，比牠低：拿來打會壞（不能修）。</b>判定時不勾「用」就不會壞，只是少 +1。`:"";
     const rr=E.amb?"<b>你被突襲了</b>：牠已經在身邊，拿遠程武器要多付 1 項拉開距離。":E.brk?"<b>這一面被突破</b>：敵人衝到身邊，拿遠程武器要多付 1 項拉開距離。":E.r?"牠在遠處（遠程）：近戰要多付 1 項才能接近。":"";
     P.innerHTML=h+`<div class="box enc"><b>${R?(boss?"魔王戰":"升級戰")+` 第 ${S.raid.i+1}/${S.raid.list.length} 場`:"遭遇"}：${esc(E.n)}（${E.lv} 級${E.king?"・BP 99":""}）</b>　你是 ${S.lv} 級。<br><span class="note">${ee}${esc(ftx)}${rr}${rinfo}${wwarn}也可以直接在上面打字說你要怎麼做：技能、武器、材料、地形想串幾個就串幾個，大賢者會拆成步驟，新用法每一步抵 1 項代價；組合成立還會靈光一閃（三選一）。戰鬥中也能喝藥（敵人會打你一下）。</span>
     <div class="row2"><button id="ef">${R?"迎擊":"戰鬥"}</button>${R?`<button id="ec">組合</button>`:""}${boss?"":`<button id="er">${R?"放棄據點逃走":"撤退"}</button>`}${!R&&S.items.some(x=>x.k==="escape")?`<button id="esc">撒逃跑粉（不用付代價）</button>`:""}</div></div>`;
@@ -113,7 +118,7 @@ function renderPanel(){
   const sel=(id,opts,val)=>`<select id="${id}">${opts.map(([v,t])=>`<option value="${esc(v)}" ${v===val?"selected":""}>${esc(t)}</option>`).join("")}</select>`;
   let f="";
   if(it.act==="combo"){
-    f+=`<div class="lbl">技能（最多 3 個，MP＝技能數；✦魔法物品附帶的不扣 MP）</div><div class="chips">`+S.skills.concat(itemSkills()).map((s,i)=>`<label class="chip"><input type="checkbox" class="dsk" value="${esc(s.n)}" ${it.skills.includes(s.n)?"checked":""} ${usesLeft(s)<1?"disabled":""}>${s.fromItem?"✦":""}${esc(s.n)}<small>${s.lv}・${s.e.join("")}・剩${usesLeft(s)}</small></label>`).join("")+`</div>`;
+    f+=`<div class="lbl">技能（最多 3 個，MP＝技能數；✦魔法物品附帶的不扣 MP）</div><div class="chips">`+S.skills.concat(itemSkills()).map((s,i)=>`<label class="chip"><input type="checkbox" class="dsk" value="${esc(s.n)}" ${it.skills.includes(s.n)?"checked":""} ${usesLeft(s)<1?"disabled":""}>${s.fromItem?"✦":""}${esc(s.n)}<small>${s.lv}・${s.e.join("")}・剩${usesLeft(s)}${lowItem(s)?"・比對手低，用了會壞":""}</small></label>`).join("")+`</div>`;
     const objs=[["none|","不對誰（只疊技能）"],["place|"+S.at,`地點：${S.at}（${placeOf().e.join("・")}）`]]
       .concat(S.enc?[["enemy|"+S.enc.n,`眼前的${S.enc.n}`]]:[])
       .concat(S.seen.map(x=>["seen|"+x.n,`偷學：${x.n}（${x.from}${x.used?"，學過了":""}）`]))
@@ -125,7 +130,7 @@ function renderPanel(){
       (q.art.idle.length?`<div class="note">${esc(q.art.idle.join("、"))}，沒能發動。</div>`:"")+
       (q.art.foe.length?`<div class="note">${esc(S.enc.n)}的標籤：${q.art.foe.map(t=>`${t}（${ART_FOE[t]}）`).map(esc).join("；")}</div>`:"");
   }else if(["gather","explore","fight","craft","retreat","shelter","raid","boss"].includes(it.act)){
-    f+=`<label class="ck">技能 ${sel("dsk1",[["","不用"]].concat(S.skills.concat(itemSkills()).map(s=>[s.n,`${s.fromItem?"✦":""}${s.n}（${s.lv}・${s.c.join("")}・剩${usesLeft(s)}${s.fromItem?"・不扣MP":""}）`])),it.skills[0]||"")}</label>`;
+    f+=`<label class="ck">技能 ${sel("dsk1",[["","不用"]].concat(S.skills.concat(itemSkills()).map(s=>[s.n,`${s.fromItem?"✦":""}${s.n}（${s.lv}・${s.c.join("")}・剩${usesLeft(s)}${s.fromItem?"・不扣MP":""}${lowItem(s)?"・比對手低，用了會壞":""}）`])),it.skills[0]||"")}</label>`;
   }
   if(it.act==="craft")f+=`<label class="ck">做什麼 ${sel("dcr",[["","（選一個）"]].concat(RECIPES.map(r=>[r.n,`${r.n}（${Object.entries(r.need).map(([m,n])=>m+n).join("＋")}）`])),it.craft)}</label>`;
   if(it.act==="move")f+=`<label class="ck">去哪 ${sel("dpl",[["","（選一個）"]].concat(S.places.filter(n=>n!==S.at).map(n=>{const P=placeOf(n);return [n,n+(KIND_WORD[P.kind]?`（${KIND_WORD[P.kind]}）`:"")]})),it.place||"")}</label>`;
@@ -138,7 +143,7 @@ function renderPanel(){
     h+=`<div class="note">${esc(q.notes.join("；")||"沒有加成")}</div>
     <div>淨優勢 ${q.net} → 要付 <b>${q.need}</b> 項代價成功，<b>${q.bigAt}</b> 項大成功${q.key?"（關鍵戰）":""}${q.mand.mp?`　另扣 MP ${q.mand.mp}`:""}</div>
     ${d.shesh?"":step("hp","受傷 −"+q.unit+" HP")+step("mp","MP −2")+step("time","多花 2 小時")+itemPicker(q)}
-    ${q.weakWeapon?`<label class="ck"><input type="checkbox" id="dwp" ${it.weapon?"checked":""}>用${esc(q.weakWeapon.n)}（${q.weakWeapon.lv} 級，比對手低兩級以上）：+1，但打完會壞、不能修</label>`:""}
+    ${q.weakWeapon?`<label class="ck"><input type="checkbox" id="dwp" ${it.weapon?"checked":""}>用${esc(q.weakWeapon.n)}（${q.weakWeapon.lv} 級，比對手低）：+1，但打完會壞、不能修</label>`:""}
     ${q.dance?`<label class="ck"><input type="checkbox" id="ddc" ${d.dance?"checked":""}>讓${esc(q.dance.n)}替你打這一場（今天 1 次，不用付代價就算贏）</label>`:""}
     ${q.raid&&S.raid&&S.raid.shesh?`<div class="note">這場${S.raid.kind==="boss"?"魔王戰":"升級戰"}已經捨身過一次了。</div>`:`<label class="ck">捨身（拿一個部位的傷換大成功${q.raid?"，一場升級戰只能一次":""}）<select id="dsh"><option value="">不捨身</option>${SCAR_PARTS.map(p=>`<option value="${p}" ${d.shesh===p?"selected":""}>${p}：${SCAR_D[p]}${scarN(p)?`（已傷 ${scarN(p)}）`:""}</option>`).join("")}<option value="rand" ${d.shesh===true?"selected":""}>隨便哪裡</option></select></label>`}
     ${S.scars.length?`<div class="note">身上的捨身傷：${S.scars.length} 處。打贏魔王時還有 ${BAD_END_SCARS} 處以上就是壞結局。據點 S 級後可以開發萬靈藥治好一處。</div>`:""}
@@ -179,12 +184,14 @@ function itemPicker(q){
     <div class="note">${word}的東西不能修、找不回來。魔法物品付 1 次＝用掉當天 1 次魔力；同一場付第 2 次就壞。</div>`;
 }
 
+const lowItem=s=>!!(s&&s.fromItem&&S.enc&&gIdx(s.fromItem.lv)<Math.min(6,S.enc.king?7:gIdx(S.enc.lv)));
 /* ───── 自由敘事 ───── */
 async function sendSay(){
   const t=($("sayt").value||"").trim();if(!t)return;narrFrom=S.logN||0;
   if(S.pending||draft){toast="先處理上面的事。";renderPanel();return}
   if(S.pick){if(/不是我要|重抽|換一個|换一个|換別的|换别的|重來|重来/.test(t)){const r=rerollPick();if(r.err)toast=r.err}else toast="先選完三選一（不喜歡可以打「這不是我要的」重抽一次）。";refresh();return}
   {const r=localCalm(t);if(r){if(r.err)toast=r.err;refresh();return}}
+  {const r=!S.enc&&localPartCraft(t);if(r){if(r.err)toast=r.err;refresh();return}}   /* v5.15：「用鹿角做匕首」 */
   if(S.enc&&!S.enc.raid&&/逃跑粉|逃跑藥|逃跑药/.test(t)){const r=useEscape();if(r.err)toast=r.err;refresh();return}   /* v5.13：打字撒逃跑粉，不經過 AI、不付代價 */
   if(!AI.on()){toast="還沒設定 AI：按右上角 ⚙ 填 Gemini 或 OpenRouter 的金鑰。現在先用下面的按鈕。";renderPanel();return}
   busy=true;toast="";renderAll();
@@ -271,10 +278,22 @@ function sheetSkills(){
   $("sbody").querySelectorAll("[data-sw]").forEach(b=>b.onclick=()=>{const [w,i]=b.dataset.sw.split("|");const r=swapSkill(w,+i);if(r&&r.err)toast=r.err;save();sheetSkills()});
   $("fz").onclick=()=>{const ids=[...document.querySelectorAll(".fk:checked")].map(x=>+x.value);const r=fuse(ids);if(r.err){toast=r.err;closeSheet()}else{save();sheetSkills()}};
 }
+/* v5.15：魔核組合、部位做裝備 */
+function sheetCombine(ci){const c=S.items[ci];if(!isCore(c))return;const L=whiteRefs();
+  sheet(`<h3>組合：${esc(c.n)}（${c.lv}）</h3><div class="note">白字裝備＋魔核 → 魔法裝備，帶技能 ${esc(coreWord(c))}（用它不扣 MP，一天 3 次，也能拿來付代價），等級變成 ${c.lv}。${atForge()?`在鍛冶台 ${COMBINE_H_FORGE} 小時。`:`${COMBINE_H} 小時（在據點的鍛冶台只要 ${COMBINE_H_FORGE} 小時）。`}</div>`+
+    (L.length?`<table>${L.map(x=>`<tr><td>${esc(x.it.n)}（${x.it.lv}・${gearOf(x.it).slot}）${x.ref.startsWith("eq")?"（身上）":""}</td><td><button data-cg="${x.ref}">用這件</button></td></tr>`).join("")}</table>`:`<p class="note">沒有白字裝備。可以照配方做，或用部位做（打字「用鹿角做匕首」）。</p>`));
+  $("sbody").querySelectorAll("[data-cg]").forEach(b=>b.onclick=()=>{const r=combineCore(ci,b.dataset.cg);if(r.err)toast=r.err;save();closeSheet()})}
+function sheetPartCraft(pi){const p=S.items[pi];if(!isPart(p))return;
+  sheet(`<h3>用${esc(p.n)}做裝備（${p.lv}）</h3><div class="note">${PART_CRAFT_H} 小時，做出來的白字裝備等級＝${p.lv}。也可以直接打字「用${esc(p.part)}做匕首」，名字照你說的。</div><table>`+
+    WHITE_BASES.map(b=>`<tr><td>${esc(p.src+p.part+BASE_WORD[b])}（${gearOf({n:b}).slot}${gearOf({n:b}).wt?"・"+gearOf({n:b}).wt:""}）</td><td><button data-pb="${b}">做</button></td></tr>`).join("")+`</table>`);
+  $("sbody").querySelectorAll("[data-pb]").forEach(b=>b.onclick=()=>{const r=craftPart(pi,b.dataset.pb);if(r.err)toast=r.err;save();closeSheet()})}
 /* v5.2：專心鍛鍊、專心實驗 */
 function sheetTrain(){
+  const cs=S.items.map((it,i)=>({it,i})).filter(x=>isCore(x.it));
+  const box=cs.length?`<h3>魔核</h3><div class="note">照著魔核鍛鍊 1 次（${CORE_TRAIN_H} 小時），就學會它的技能，等級＝魔核等級。魔核會化掉。</div><table>`+cs.map(x=>`<tr><td>${esc(x.it.n)}（${x.it.lv}）：${esc(coreWord(x.it))}</td><td><button data-tc="${x.i}">鍛鍊學會</button></td></tr>`).join("")+`</table>`:"";
   sheet(`<h3>專心鍛鍊</h3><div class="note">一小時練一次：扣今天的一次次數，熟練 +2（每 10 次進化一階）。不扣 MP。練到次數用完為止。也可以直接打字：「專心鍛鍊 發火」「鍛鍊 發火 2 次」。</div><table>`+
-    S.skills.concat(S.store).map((s,i)=>`<tr><td><b>${esc(s.n)}</b>${i>=S.skills.length?"（倉庫）":""} ${s.lv}<br><span class="note">熟練 ${s.used}（下次進化在 ${Math.ceil((s.used+1)/10)*10}）｜今天剩 ${usesLeft(s)} 次</span></td><td><button data-tr="${i}" ${usesLeft(s)<1?"disabled":""}>練 ${usesLeft(s)} 小時</button></td></tr>`).join("")+`</table>`);
+    S.skills.concat(S.store).map((s,i)=>`<tr><td><b>${esc(s.n)}</b>${i>=S.skills.length?"（倉庫）":""} ${s.lv}<br><span class="note">熟練 ${s.used}（下次進化在 ${Math.ceil((s.used+1)/10)*10}）｜今天剩 ${usesLeft(s)} 次</span></td><td><button data-tr="${i}" ${usesLeft(s)<1?"disabled":""}>練 ${usesLeft(s)} 小時</button></td></tr>`).join("")+`</table>`+box);
+  $("sbody").querySelectorAll("[data-tc]").forEach(b=>b.onclick=()=>{const r=trainCore(+b.dataset.tc);if(r.err)toast=r.err;save();closeSheet()});
   $("sbody").querySelectorAll("[data-tr]").forEach(b=>b.onclick=()=>{const r=train(S.skills.concat(S.store)[+b.dataset.tr].n);if(r.err)toast=r.err;closeSheet()});
 }
 /* 打字的鍛鍊、實驗：程式自己認，不叫 AI */
@@ -358,8 +377,8 @@ function sheetBag(){
   let h=`<h3>裝備</h3><div class="note">武器 +1；遠程再 +1；近戰打遠程的對手要多付 1 項才能接近；雙手近戰大成功少付 1 項。盾、衣服、頭減傷。比對手等級低的裝備用完就壞（不能修）。✦＝魔法物品（一個效果、一天 3 次）。</div><table>`+
     SLOTS.map(k=>{const it=S.eq[k];return `<tr><td>${k}</td><td>${it?esc(itemDesc(it)):'<span class="note">（空）</span>'}</td><td>${it&&!inFight?`<button data-uq="${k}" ${lock?"disabled":""}>卸下</button>`:""}</td></tr>`}).join("")+`</table>`;
   const fg=canForge();
-  h+=`<h3>背包 ${S.items.length}/${bagMax()}</h3>`+(fg===true?`<div class="note">鍛冶台：白字裝備＋魔核 ×${forgeCost()}（或魔晶 ×1）→ 魔法裝備（${S.lv} 級，效果隨機），${racialOwned("矮人")?Math.ceil(FORGE_HOURS/2):FORGE_HOURS} 小時。聚落專屬的效果做不出來。</div>`:`<div class="note">鍛造魔法裝備：${fg}。</div>`)+
-    `<table>`+(S.items.map((it,i)=>`<tr><td>${esc(itemDesc(it))}</td><td>${it.slot&&!inFight?`<button data-eq="${i}" ${lock?"disabled":""}>裝上</button>`:""}${it.k==="potion"?`<button data-dr="${i}" ${lock?"disabled":""}>喝</button>`:""}${fg===true&&it.slot&&!it.mg?` <button data-fg="${i}|0" ${lock||(S.mats.魔核||0)<forgeCost()?"disabled":""}>鍛造（魔核）</button>${S.mats.魔晶?` <button data-fg="${i}|1" ${lock?"disabled":""}>鍛造（魔晶）</button>`:""}`:""}</td></tr>`).join("")||"<tr><td>（空）</td></tr>")+`</table>`;
+  h+=`<h3>背包 ${bagWord()}</h3>`+(fg===true?`<div class="note">鍛冶台：白字裝備＋魔核 ×${forgeCost()}（或魔晶 ×1）→ 魔法裝備（${S.lv} 級，效果隨機），${racialOwned("矮人")?Math.ceil(FORGE_HOURS/2):FORGE_HOURS} 小時。聚落專屬的效果做不出來。</div>`:`<div class="note">鍛造魔法裝備：${fg}。</div>`)+
+    `<table>`+(S.items.map((it,i)=>`<tr><td>${esc(itemDesc(it))}</td><td>${it.slot&&!inFight?`<button data-eq="${i}" ${lock?"disabled":""}>裝上</button>`:""}${it.k==="potion"?`<button data-dr="${i}" ${lock?"disabled":""}>喝</button>`:""}${isCore(it)&&!inFight?` <button data-cb="${i}" ${lock?"disabled":""}>組合</button> <button data-ct="${i}" ${lock?"disabled":""}>鍛鍊學會</button>${S.items.some((x,j)=>j!==i&&isCore(x)&&x.lv===it.lv&&it.lv!=="S")?` <button data-cm="${i}" ${lock?"disabled":""}>合成升級</button>`:""}`:""}${isPart(it)&&!inFight?` <button data-pc="${i}" ${lock?"disabled":""}>做成裝備</button>`:""}${fg===true&&it.slot&&!it.mg?` <button data-fg="${i}|0" ${lock||(S.mats.魔核||0)<forgeCost()?"disabled":""}>鍛造（魔核）</button>${S.mats.魔晶?` <button data-fg="${i}|1" ${lock?"disabled":""}>鍛造（魔晶）</button>`:""}`:""}</td></tr>`).join("")||"<tr><td>（空）</td></tr>")+`</table>`;
   h+=foodHtml(lock||inFight);
   h+=`<h3>材料</h3><p class="chips">${MATS.filter(m=>S.mats[m]).map(m=>`<button class="chip" data-mat="${m}">${m}×${S.mats[m]}</button>`).join(" ")||"（空）"}</p><div class="note">點材料看能做什麼。</div><p>金幣：${S.gold}　語言：${S.langs.join("、")||"沒有"}</p>
   <p>看過的魔物技巧：${S.seen.map(x=>`${esc(x.n)}（${esc(x.from)}・${x.lv}${x.used?"・已偷學":""}）`).join("、")||"（無）"}</p>
@@ -369,6 +388,10 @@ function sheetBag(){
   const R=()=>{save();sheetBag()};
   $("sbody").querySelectorAll("[data-uq]").forEach(b=>b.onclick=()=>{const r=unequip(b.dataset.uq);if(r.err)toast=r.err;R()});
   $("sbody").querySelectorAll("[data-eq]").forEach(b=>b.onclick=()=>{const r=equip(+b.dataset.eq);if(r.err)toast=r.err;R()});
+  $("sbody").querySelectorAll("[data-cb]").forEach(b=>b.onclick=()=>sheetCombine(+b.dataset.cb));
+  $("sbody").querySelectorAll("[data-ct]").forEach(b=>b.onclick=()=>{const r=trainCore(+b.dataset.ct);if(r.err)toast=r.err;save();closeSheet()});
+  $("sbody").querySelectorAll("[data-cm]").forEach(b=>b.onclick=()=>{const i=+b.dataset.cm,j=S.items.findIndex((x,k)=>k!==i&&isCore(x)&&x.lv===S.items[i].lv);const r=mergeCores(i,j);if(r.err)toast=r.err;save();closeSheet()});
+  $("sbody").querySelectorAll("[data-pc]").forEach(b=>b.onclick=()=>sheetPartCraft(+b.dataset.pc));
   bindFood(R);
   $("sbody").querySelectorAll("[data-mat]").forEach(b=>b.onclick=()=>sheetMat(b.dataset.mat));
   $("sbody").querySelectorAll("[data-dr]").forEach(b=>b.onclick=()=>{usePotion(+b.dataset.dr);closeSheet()});
@@ -435,7 +458,7 @@ function sheetBase(){
   <div class="note">捐物資換點數：一般材料 1 點、獸皮 2、魔核 4、物品 ${ITEM_PTS}。捐出去就沒了。升一級就會引來一場升級戰。</div>
   ${b&&S.pts<b.need?`<p><button id="dnext" ${lock?"disabled":""}>捐到夠升 ${b.target}（還差 ${b.need-S.pts} 點）</button> <span class="note">先捐骨頭、獸皮、魔核，再木材、石片、草，食物留 5 份。</span></p>`:""}<table>`+
   MATS.filter(m=>S.mats[m]).map(m=>`<tr><td>${m}×${S.mats[m]}</td><td class="note">${ptsOf(m)} 點</td><td><button data-dn="${m}|1" ${lock?"disabled":""}>捐 1</button> <button data-dn="${m}|h" ${lock?"disabled":""}>捐一半</button> <button data-dn="${m}|a" ${lock?"disabled":""}>全捐</button></td></tr>`).join("")+`</table>`;
-  if(S.items.length)h+=`<p class="note">物品（背包 ${S.items.length}/${bagMax()}）：</p><p>`+S.items.map((it,i)=>`<button data-di="${i}" ${lock?"disabled":""}>捐 ${esc(it.n)}</button>`).join(" ")+`</p>`;
+  if(S.items.length)h+=`<p class="note">物品（背包 ${bagWord()}）：</p><p>`+S.items.map((it,i)=>`<button data-di="${i}" ${lock?"disabled":""}>捐 ${esc(it.n)}</button>`).join(" ")+`</p>`;
   if(S.nest==="S")h+=`<p><button id="retire" ${lock?"disabled":""}>蓋${MANSION.n}（退休）</button> <span class="note">${esc(costWord(MANSION.cost))}。${esc(MANSION.d)}</span></p>`;
   if(S.nest==="S")h+=`<p><button id="mkcure" ${lock?"disabled":""}>開發萬靈藥（魔核 5、草 5，4 小時）</button> <span class="note">治好一處捨身傷。</span></p>`;
   h+=`<h3>設施 ${S.fac.length}/${FAC_SLOTS(nestIdx())}</h3><div class="note">放一個技能進去才會運作；技能大類對口效果更好。放進去的技能離開技能表，拿回來放回技能表（滿了進倉庫）。放、拿各花 1 小時。升級戰時，每座在運作的設施擋掉 1 條劣勢。</div>`;

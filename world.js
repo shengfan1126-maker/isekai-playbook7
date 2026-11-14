@@ -2,7 +2,7 @@
    用戶 11-11 定：
    - 裝備欄：頭、項鍊、戒指、武器（單手／雙手近戰／單手遠程／雙手遠程）、副手（盾配單手近戰；箭矢袋／石袋配遠程）、衣服、鞋子
    - 遠程武器多一條優勢；近戰打遠程的對手要多付一項才能接近；雙手近戰破壞力＝大成功少付 1 項
-   - 下克上：武器比對手低兩級以上，白字照用但用完就壞（v5.11：差一級不壞；v5.14：玩家自己選才用，不選就不加、不壞）；魔法物品比對手低，魔法效果沒用、用了一樣壞
+   - 下克上：物品比對手低，玩家自己選了用才用，照樣有效、打完會壞（v5.15）；不選就不加、不壞；魔法物品比對手低，魔法效果沒用、用了一樣壞
    - 魔法物品一個效果、一天 3 次；當代價一場只能付 1 次，同一場付第 2 次就壞
    - 壞掉、碎掉、用掉、丟失都是永久的，不能修
    - 戰鬥中可以喝藥，敵人照樣打你一下 */
@@ -77,7 +77,7 @@ function genMagic(lv,base,legend){
   mg.d=mgDesc(mg);it.mg=mg;it.use=0;return it;
 }
 /* 附帶技能的魔法物品（裝備中、等級夠、今天還有次數），當成一個技能用 */
-function itemSkills(){return eqItems().filter(it=>it.mg&&it.mg.t==="skill").map(it=>({n:it.mg.v.n,e:it.mg.v.e,c:it.mg.v.c,f:it.mg.v.f,lv:it.lv,today:it.use||0,used:0,fromItem:it,d:`來自${it.n}`}))}
+function itemSkills(){return eqItems().concat((S.items||[]).filter(it=>it.slot)).filter(it=>it.mg&&it.mg.t==="skill").map(it=>({n:it.mg.v.n,e:it.mg.v.e,c:it.mg.v.c,f:it.mg.v.f,lv:it.lv,today:it.use||0,used:0,fromItem:it,d:`來自${it.n}`}))}
 
 /* ───── 相剋 ───── */
 /* 對手的類別（剋X）：魔王戰的「軍團＋魔物」兩個都算 */
@@ -105,10 +105,10 @@ function gearBonus(q,act,sks){
   const vsEnemy=en&&["fight","combo"].includes(act);
   if(vsEnemy){
     const w=weaponIt();
-    /* v5.14：下克上（武器比對手低兩級以上）不會自動拿來用。玩家自己選才用（+1，打完會壞）；不選就不加、不壞 */
+    /* v5.14／v5.15：下克上（武器比對手低）不會自動拿來用。玩家自己選才用（+1，打完會壞）；不選就不加、不壞 */
     const wk=w&&weakWeapon(w,q),chose=!!(q.it&&(q.it.weapon===true||(q.art&&q.art.fired.some(x=>x.k==="weapon"))));
     const useW=w&&(!wk||chose);
-    if(wk){q.weakWeapon=w;q.notes.push(useW?`${w.n}（${w.lv}）比對手低兩級以上：這場用了，打完會壞`:`${w.n}（${w.lv}）比對手低兩級以上：沒拿來用（勾「用」才 +1，打完會壞）`)}
+    if(wk){q.weakWeapon=w;q.notes.push(useW?`${w.n}（${w.lv}）比對手低：這場用了，打完會壞`:`${w.n}（${w.lv}）比對手低：沒拿來用（勾「用」才 +1，打完會壞）`)}
     if(useW){net+=1;q.notes.push(`${w.n} +1`);q.useWeapon=w;
       if(isRanged()){net+=1;q.notes.push("遠程 +1")}
       if(isTwoHand())q.smash=true;}
@@ -142,8 +142,8 @@ function gearBonus(q,act,sks){
   }
   return net;
 }
-/* 武器比對手低兩級以上（下克上：用了打完會壞） */
-function weakWeapon(w,q){const fi=Math.min(6,q&&q.foe!=null?q.foe:foeIdx());return !!(w&&fi>=0&&gIdx(w.lv)<fi-1)}
+/* 物品比對手低（下克上：用了打完會壞） */
+function weakWeapon(w,q){const fi=Math.min(6,q&&q.foe!=null?q.foe:foeIdx());return !!(w&&fi>=0&&gIdx(w.lv)<fi)}   /* v5.15：比對手低就算（差一級也算） */
 /* 身上有效的聚落專屬魔法武器 */
 function uniqOn(t){return eqItems().find(it=>it.mg&&it.mg.t===t&&it.mg.race&&gIdx(it.lv)>=Math.min(6,foeIdx()))}
 /* 輸一場的傷害倍率：盾 −20%、衣服 −20%、頭 −10%；屬性抗性再減半 */
@@ -159,10 +159,13 @@ function afterFight(q,out){
   if(q.vicious){const d=Math.ceil(hpMax()*.05);S.hp-=d;out.paid.push(`血契反噬 HP −${d}`)}
   if(out.res!=="fail"&&q.judge&&mgOn("growth").length)out.gain.push(`成長：存在值+${gainExist(1)}`);
   if(out.res!=="fail"&&q.judge){const rg=mgOn("regen").length;if(rg){const h=Math.ceil(hpMax()*.1*rg);S.hp=Math.min(hpMax(),S.hp+h);out.gain.push(`再生 HP +${h}`)}}
+  /* v5.15：用了比對手低的魔法物品技能（自己選的），打完也會壞 */
+  {const fi0=Math.min(6,q.foe!=null?q.foe:foeIdx());const used=uniq([q.useSkill].concat(q.art?q.art.skills:[]).concat(q.act==="combo"?q.sks||[]:[]).filter(s=>s&&s.fromItem).map(s=>s.fromItem));
+   used.forEach(it=>{if(fi0>=0&&gIdx(it.lv)<fi0&&it!==q.useWeapon){loseItem(it);out.paid.push(`${it.n} 撐不住，壞了（${it.lv} 級打 ${GRADES[fi0]} 級，不能修）`)}})}
   const w=q.useWeapon;if(!w||!S.enc&&!q.foe)return;
   const fi=Math.min(6,q.foe!=null?q.foe:foeIdx());   /* 魔王算 S 級 */
-  /* v5.11：差兩級以上才會壞（差一級照樣能用） */
-  if(gIdx(w.lv)<fi-1&&eqItems().includes(w)){loseItem(w);out.paid.push(`${w.n} 撐不住，壞了（${w.lv} 級打 ${GRADES[Math.min(6,fi)]} 級，差兩級以上，不能修）`);spareWeapon(out)}
+  /* v5.15：比對手低就會壞（玩家自己勾了才會用到這裡） */
+  if(gIdx(w.lv)<fi&&eqItems().includes(w)){loseItem(w);out.paid.push(`${w.n} 撐不住，壞了（${w.lv} 級打 ${GRADES[Math.min(6,fi)]} 級，不能修）`);spareWeapon(out)}
 }
 /* 輸一場受傷：殘影斗篷一天 3 次免傷 */
 function takeHit(d,out){const dp=uniqOn("displace");if(dp&&mgUses(dp)>0){dp.use=(dp.use||0)+1;out.lines.push(`${dp.n}一晃，攻擊打在殘影上（今天第 ${dp.use}/3 次）。`);return 0}S.hp-=d;return d}

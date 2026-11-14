@@ -103,7 +103,7 @@ function artCheck(steps,o){
 }
 /* 給大賢者看的清單 */
 function artListText(){
-  return artSources().map(x=>`${x.n}｜${{skill:"技能",weapon:"武器",env:"地形",self:"徒手",mat:"材料（用了會少一份）"}[x.k]}｜標籤：${x.tags.join("、")}｜本來用法：${x.p||"無"}${x.k==="skill"?`｜今天剩 ${x.left} 次`:""}${x.k==="mat"?`｜有 ${x.left} 份`:""}${x.k==="weapon"&&weakWeapon(weaponIt())?"｜比對手低兩級以上，玩家沒提到就不要用它（用了會壞）":""}`).join("\n");
+  return artSources().map(x=>`${x.n}｜${{skill:"技能",weapon:"武器",env:"地形",self:"徒手",mat:"材料（用了會少一份）"}[x.k]}｜標籤：${x.tags.join("、")}｜本來用法：${x.p||"無"}${x.k==="skill"?`｜今天剩 ${x.left} 次`:""}${x.k==="mat"?`｜有 ${x.left} 份`:""}${x.k==="weapon"&&weakWeapon(weaponIt())?"｜比對手低，玩家沒提到就不要用它（用了會壞）":""}`).join("\n");
 }
 
 /* ───── v5.3：招式 ─────
