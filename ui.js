@@ -8,7 +8,10 @@ let busy=false;      // 等 AI 回答中
 
 function save(){ls.s(SAVE_KEY,JSON.stringify(S))}
 function load(){try{const t=ls.g(SAVE_KEY);if(t){S=JSON.parse(t);return S&&S.ver===VER}}catch(e){}return false}
-function heal(){S.store=S.store||[];S.frags=S.frags||[];S.seen=[];if(S.mats&&S.mats.魔核){S.mats.無名魔核=(S.mats.無名魔核||0)+S.mats.魔核;delete S.mats.魔核}   /* v5.21：材料魔核改名無名魔核 */   /* v5.19：偷學拿掉 */S.scars=S.scars||[];S.items=S.items||[];S.mats=S.mats||{};worldFix();
+function healHad(){if(S.had)return;S.had=[];const add=n=>{if(n&&!S.had.includes(n))S.had.push(n)};
+  S.skills.concat(S.store||[]).forEach(s=>add(s.n));(S.fac||[]).forEach(f=>f.s&&add(f.s.n));
+  (S.log||[]).forEach(l=>{let m;const re=/學會【(.+?)】/g;while((m=re.exec(l.t)))add(m[1]);const f=l.t.match(/整合：(.+?) →/);if(f)f[1].split("＋").forEach(add)})}
+function heal(){healHad();S.store=S.store||[];S.frags=S.frags||[];S.seen=[];if(S.mats&&S.mats.魔核){S.mats.無名魔核=(S.mats.無名魔核||0)+S.mats.魔核;delete S.mats.魔核}   /* v5.21：材料魔核改名無名魔核 */   /* v5.19：偷學拿掉 */S.scars=S.scars||[];S.items=S.items||[];S.mats=S.mats||{};worldFix();
   S.scars=S.scars.map(x=>OLD_SCAR[x]||x);S.pts=S.pts||0;S.fac=S.fac||[];S.facPick=S.facPick||null;S.raid=S.raid||null;
   if(S.ch>=2&&!S.bases){S.bases=[];   /* 舊存檔：從紀錄找出當過據點的地方 */
     S.log.forEach(l=>{const m=l.t.match(/你在(.+?)建立了 F 級據點/)||l.t.match(/你把據點搬到(.+?)[。，]/);if(m&&!S.bases.includes(m[1]))S.bases.push(m[1])});

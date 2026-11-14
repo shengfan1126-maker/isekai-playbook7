@@ -253,14 +253,19 @@ const pickPts=()=>Math.ceil(ITEM_PTS*(1+pg())*devoteMult());
 const skillPts=s=>Math.ceil(ITEM_PTS*(1+gIdx(s.lv))*devoteMult());
 const skillGold=s=>Math.ceil(3*(1+gIdx(s.lv))*sellMult());
 const canSellSkill=()=>!!((typeof villageAt==="function"&&villageAt())||(S.ch>=2&&nestIdx()>=2));
-function newSkillPool(tags){const pool=COMBOS.concat(stealPool()).filter(t=>!nameTaken(t.n));const fit=pool.filter(t=>(t.e||[]).some(e=>tags.includes(e)));return fit.length?fit:pool}
+/* v5.23：學過的（整合、捐掉、忘掉的也算）不再出；最近出過、沒選的排後面，不會一直看到同一個 */
+function newSkillPool(tags){
+  const base=COMBOS.concat(stealPool()).filter(t=>!nameTaken(t.n));let pool=base.filter(t=>!hadSkill(t.n));if(!pool.length)pool=base;
+  const fit=pool.filter(t=>(t.e||[]).some(e=>tags.includes(e))),L=fit.length>=2?fit:pool,rec=S.offered||[];
+  const fresh=L.filter(t=>!rec.includes(t.n));return fresh.length>=2?fresh:L}
+function noteOffered(ch){S.offered=(S.offered||[]).concat(ch.filter(c=>c.k==="new").map(c=>c.t.n)).slice(-8)}
 function buildPick(why,evoFrom,tags,ex){
   ex=ex||[];const ch=[];
   const ev=shuffle(evoFrom.filter(s=>canLvUp(s)&&!ex.includes(s.n))).sort((a,b)=>gIdx(a.lv)-gIdx(b.lv))[0]
     ||shuffle(S.skills.filter(s=>canLvUp(s)&&!ex.includes(s.n))).sort((a,b)=>gIdx(a.lv)-gIdx(b.lv))[0];
   if(ev)ch.push({k:"evo",n:ev.n,from:ev.lv,to:GRADES[gIdx(ev.lv)+1]});
   shuffle(newSkillPool(tags).filter(t=>!ex.includes(t.n))).slice(0,ev?1:2).forEach(t=>ch.push({k:"new",t}));
-  ch.push({k:"pts",v:pickPts()});
+  ch.push({k:"pts",v:pickPts()});noteOffered(ch);
   return {why,evoFrom:evoFrom.map(s=>s.n),tags,ch,re:0};
 }
 function openPick(why,evoFrom,tags){S.pick=buildPick(why,evoFrom,tags)}

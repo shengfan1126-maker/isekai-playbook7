@@ -79,7 +79,7 @@ function autoEvolve(){
 function newGame(){
   const sk=shuffle(START_POOL).slice(0,3).map(s=>mkSkill(s,"F"));
   S={ver:VER,ch:1,day:1,hour:WAKE,lv:"F",exist:0,hp:0,mp:MP_MAX,gold:0,
-    skills:sk,store:[],items:[],mats:{},at:"林邊空地",places:["林邊空地"],
+    skills:sk,had:sk.map(s=>s.n),store:[],items:[],mats:{},at:"林邊空地",places:["林邊空地"],
     needs:{食物:false,火:false,水:false,避難所:false},fire:false,shelterAt:null,
     tags:{飢餓:false,會冷:false,疾病:0},scars:[],thirst:0,drank:false,
     seen:[],frags:[],enc:null,pending:null,over:null,nest:null,base:null,log:[],pts:0,fac:[],facPick:null,raid:null,bases:[],
@@ -106,11 +106,14 @@ function nameTaken(n){const k=charKey(n);return S.skills.concat(S.store).some(s=
 function mkSkill(t,lv){return {n:t.n,e:t.e.slice(),c:t.c.slice(),lv:lv||"F",used:0,today:0,d:t.d||""}}
 function learnSkill(t,lv){
   if(owned(t.n)||nameTaken(t.n))return "已經會了";
-  const s=mkSkill(t,lv);
+  const s=mkSkill(t,lv);markHad(t.n);
   if(S.skills.length<SKILL_SLOTS){S.skills.push(s);return "技能表"}
   if(S.store.length<STORE_MAX[S.lv]){S.store.push(s);return "倉庫"}
   return "滿了";
 }
+/* v5.23：學過的技能（整合、捐、賣、忘掉之後也算），實驗、靈光一閃不會再出 */
+function markHad(n){S.had=S.had||[];if(!S.had.includes(n))S.had.push(n)}
+function hadSkill(n){return (S.had||[]).includes(n)}
 function lvUp(s){const cap=Math.min(6,pg()+1);const i=gIdx(s.lv);if(i<cap){s.lv=GRADES[i+1];return true}return false}
 function useSkill(s,out){
   if(s.fromItem){s.fromItem.use=(s.fromItem.use||0)+1;return}
