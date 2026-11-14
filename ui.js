@@ -480,6 +480,10 @@ function sheetBase(){
   ${b&&S.pts<b.need?`<p><button id="dnext" ${lock?"disabled":""}>捐到夠升 ${b.target}（還差 ${b.need-S.pts} 點）</button> <span class="note">先捐骨頭、獸皮、無名魔核，再木材、石片、草，食物留 5 份。</span></p>`:""}<table>`+
   MATS.filter(m=>S.mats[m]).map(m=>`<tr><td>${m}×${S.mats[m]}</td><td class="note">${ptsOf(m)} 點</td><td><button data-dn="${m}|1" ${lock?"disabled":""}>捐 1</button> <button data-dn="${m}|h" ${lock?"disabled":""}>捐一半</button> <button data-dn="${m}|a" ${lock?"disabled":""}>全捐</button></td></tr>`).join("")+`</table>`;
   if(S.items.length)h+=`<p class="note">物品（背包 ${bagWord()}）：</p><p>`+S.items.map((it,i)=>`<button data-di="${i}" ${lock?"disabled":""}>捐 ${esc(it.n)}</button>`).join(" ")+`</p>`;
+  /* v5.26：黑心廢品回收 */
+  h+=`<h3>黑心廢品回收</h3><div class="note">什麼都收（背包裡的東西、材料），一個 ${JUNK_GOLD} 金幣，不看好壞。身上穿的不收。金幣 ${S.gold}。湊夠了就去城鎮買東西、學語言和技能（城鎮照舊要友好度）。</div>`+
+    (MATS.filter(m=>S.mats[m]).length?`<p>`+MATS.filter(m=>S.mats[m]).map(m=>`<button data-jm="${m}|1" ${lock?"disabled":""}>賣 ${m}×1（${JUNK_GOLD}）</button> <button data-jm="${m}|a" ${lock?"disabled":""}>全賣 ${m}×${S.mats[m]}（${S.mats[m]*JUNK_GOLD}）</button>`).join("<br>")+`</p>`:"")+
+    (S.items.length?`<p>`+S.items.map((it,i)=>`<button data-ji="${i}" ${lock?"disabled":""}>賣 ${esc(it.n)}（${JUNK_GOLD}）</button>`).join(" ")+`</p>`:"");
   if(S.nest==="S")h+=`<p><button id="retire" ${lock?"disabled":""}>蓋${MANSION.n}（退休）</button> <span class="note">${esc(costWord(MANSION.cost))}。${esc(MANSION.d)}</span></p>`;
   if(S.nest==="S")h+=`<p><button id="mkcure" ${lock?"disabled":""}>開發萬靈藥（無名魔核 5、草 5，4 小時）</button> <span class="note">治好一處捨身傷。</span></p>`;
   h+=`<h3>設施 ${S.fac.length}/${FAC_SLOTS(nestIdx())}</h3><div class="note">放一個技能進去才會運作；技能大類對口效果更好。放進去的技能離開技能表，拿回來放回技能表（滿了進倉庫）。放、拿各花 1 小時。升級戰時，每座在運作的設施擋掉 1 條劣勢。</div>`;
@@ -493,6 +497,8 @@ function sheetBase(){
   if($("retire")){let armed=false;$("retire").onclick=()=>{if(!armed){armed=true;$("retire").textContent="再按一次：真的要退休（遊戲結束）";return}const r=retire();if(r.err)toast=r.err;closeSheet()}}
   if($("mkcure"))$("mkcure").onclick=()=>{const r=makeCure();if(r.err)toast=r.err;R()};
   $("sbody").querySelectorAll("[data-di]").forEach(x=>x.onclick=()=>{donateItem(+x.dataset.di);R()});
+  $("sbody").querySelectorAll("[data-jm]").forEach(x=>x.onclick=()=>{const [m,k]=x.dataset.jm.split("|");const r=junkSellMat(m,k==="a"?S.mats[m]:1);if(r.err)toast=r.err;R()});
+  $("sbody").querySelectorAll("[data-ji]").forEach(x=>x.onclick=()=>{const r=junkSellItem(+x.dataset.ji);if(r.err)toast=r.err;R()});
   $("sbody").querySelectorAll("[data-fo]").forEach(x=>x.onclick=()=>{facOut(+x.dataset.fo);R()});
   $("sbody").querySelectorAll("[data-fs]").forEach(x=>x.onchange=()=>{if(x.value!=="")facPut(+x.dataset.fs,+x.value);R()});
 }

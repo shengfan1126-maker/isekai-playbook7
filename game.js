@@ -305,6 +305,7 @@ function loot(out,big,extra){   /* extra：獵人、逆轉多拿的那一份，�
   const en=S.enc,ei=gIdx(en.lv),k=big?2:1;
   addMat("生肉",k);addMat("獸皮",1);addMat("骨頭",1);out.gain.push(`生肉×${k}`,"獸皮","骨頭");
   if(rand()<.15+.08*ei){addMat("無名魔核",1);out.gain.push("無名魔核")}
+  if(!extra)monGold(en.lv,out);   /* v5.26 */
   if(!extra){queueLoot(en,big?2:1);out.lines.push(`可以拆解${en.n}了（${big?"三選二":"三選一"}）。`)}   /* v5.15 */
   const ex=!extra&&ei>=pg()-1?1+Math.max(0,ei-pg())+(big?1:0):0;
   if(ex)out.gain.push(`存在值+${gainExist(ex)}`);
@@ -727,6 +728,7 @@ function nextBattle(){const R=S.raid,b=R.list[R.i];S.enc=Object.assign({raid:tru
 function raidStep(win,out){
   const R=S.raid,b=R.list[R.i];S.enc=null;
   if(win&&out.res==="big"&&R.lost>0&&mgOn("vorpal").length){R.lost--;out.lines.push("逆轉：這一擊抵銷了之前輸掉的一場。")}
+  if(win&&!b.army&&!b.king)monGold(b.lv,out);   /* v5.26：升級戰的魔物也給金幣 */
   if(win&&!b.army&&!b.king&&R.list.slice(R.i+1).every(x=>x.army||x.king)){queueLoot(b,out.res==="big"?2:1);out.lines.push(`打完可以拆解${b.n}。`)}   /* v5.15：升級戰的頭目也能拆解 */
   if(win){R.won++;const ex=1+Math.max(0,(b.king?7:gIdx(b.lv))-pg())+(out.res==="big"?1:0);out.gain.push(`存在值+${gainExist(ex)}`)}
   else{R.lost++;out.lines.push(`這一場輸了（${R.lost}/${R.max}）。`)}

@@ -214,3 +214,14 @@ function localGearCmd(raw){
   if(/鍛鍊|鍛煉|鍛鍊|練|學|吸收|化為己用/.test(t))return trainCore(cs[0].i);
   return null;
 }
+
+/* ───── v5.26：金幣（用戶 12:22）─────
+   打倒魔物給金幣：F 2、E 4、D 6、C 8、B 10、A 10、S 20（升級戰的魔物也算，軍隊、魔王不算）。
+   據點的「黑心廢品回收」：背包裡的東西、材料，什麼都收，一個 2 金幣（身上穿的不收）。城鎮交易照舊要友好度。 */
+const MON_GOLD={F:2,E:4,D:6,C:8,B:10,A:10,S:20},JUNK_GOLD=2;
+function monGold(lv,out){const g=MON_GOLD[lv]||0;if(g){S.gold+=g;out&&out.gain.push(`金幣 ${g}`)}return g}
+function junkErr(){if(S.ch<2||!S.base)return "要先建立據點";return busyErr()}
+function junkSellMat(m,n){const e=junkErr();if(e)return {err:e};n=Math.min(n||1,S.mats[m]||0);if(n<1)return {err:"沒有"};
+  S.mats[m]-=n;const g=n*JUNK_GOLD;S.gold+=g;log(`黑心廢品回收：${m}×${n}，+${g} 金幣（現在 ${S.gold}）。`);return {ok:true,g}}
+function junkSellItem(i){const e=junkErr();if(e)return {err:e};const it=S.items[i];if(!it)return {err:"沒有"};
+  S.items.splice(i,1);S.gold+=JUNK_GOLD;log(`黑心廢品回收：${it.n}，+${JUNK_GOLD} 金幣（現在 ${S.gold}）。`);return {ok:true,g:JUNK_GOLD}}
