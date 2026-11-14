@@ -106,7 +106,7 @@ function play(idx){
       if(!S.needs.避難所){if(has({木材:3,草:3})){act({act:"craft",craft:"草棚"});continue}goGather((S.mats.木材||0)<3?"木材":"草");continue}
       if(!S.needs.食物){if(Math.random()<.4)act({act:"hunt"});else goGather("野果");continue}
     }
-    if(S.ch===1&&S.ch1Offered&&!S.pending){const w=S.places.find(n=>G.baseable(n));if(w&&S.at!==w){act({act:"move",place:w});continue}if(w){G.startCh2(true);continue}}
+    if(S.ch===1&&S.ch1Offered&&!S.pending){const w=S.shelterAt;   /* v5.17：據點建在避難所那裡 */if(w&&S.at!==w){act({act:"move",place:w});continue}if(w){G.startCh2(true);continue}}
     if(S.ch===2&&baseChores())continue;
     {const mi=S.items.findIndex(it=>it.mg&&it.slot&&(!S.eq[it.slot]||(!S.eq[it.slot].mg&&it.slot!=="武器"))&&canEq(it));if(mi>=0){G.equip(mi);continue}}
     const sp=G.specialHere();if(sp&&S.hp>=G.hpMax()*.8&&Math.random()<.5){const P=G.placeOf();const tier=P.kind==="hostile"?P.tier:P.kind==="dungeon"?(P.tier||2)+((S.dun[P.n]||{}).fl||0):(S.maze.best||0);

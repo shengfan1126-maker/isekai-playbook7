@@ -166,7 +166,7 @@ function moveNeeds(m){
   const T=uniq(m.steps.flatMap(x=>x.tags||[]));
   if(T.includes("火"))tick("火",`用【${m.n}】弄出了火`);
   if(T.includes("水")){tick("水",`用【${m.n}】弄到了水`);S.drank=true}
-  if(m.steps.some(x=>["環境","防護"].includes(x.prim)&&(x.tags||[]).includes("土")))tick("避難所",`用【${m.n}】把土堆成能擋風雨的牆`);
+  /* v5.17：組合堆的土牆不算避難所（要蓋草棚或占岩穴才能建立據點） */
 }
 function findMove(t){return moves().slice().sort((a,b)=>b.n.length-a.n.length).find(m=>t.includes(m.n))}
 function renameMove(a,b){b=String(b||"").trim();const m=moves().find(x=>x.n===a);if(!m)return {err:`沒有【${a}】這一招`};

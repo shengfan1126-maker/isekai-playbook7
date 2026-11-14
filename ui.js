@@ -211,7 +211,7 @@ async function sendSay(){
     if(it.act==="potion"){const i=S.items.findIndex(x=>x.k==="potion"&&(!it.potion||x.n===it.potion));const r=usePotion(i<0?null:i);if(r.err)toast=r.err;refresh();narrate(t);return}
     if(it.act==="delve"){const r=startSpecial();if(r&&r.err)toast=r.err;refresh();narrate(t);return}
     if(it.act==="talk"){log(`（你）${t}`);refresh();narrate(t);return}
-    if(it.act==="hunt"||it.act==="rest"){const q=planOf(it);exec(q,{});refresh();narrate(t);return}
+    if(["hunt","rest","explore","shelter"].includes(it.act)){const q=planOf(it);if(q.err){toast=q.err;refresh();return}exec(q,{});refresh();narrate(t);return}
     if(it.act==="craft"){if(!it.craft)return sheetCraft();const r=craftDirect(it.craft);if(r.err)toast=r.err;refresh();if(!r.err)narrate(t);return}
     openDraft(it,t);
   }catch(e){busy=false;toast="AI 出錯："+e.message+"（可以改用按鈕）";renderAll()}
@@ -234,14 +234,14 @@ async function narrate(said){
 /* ───── 選單 ───── */
 function menuClick(k){
   toast="";
-  if(["gather","explore","fight","retreat","shelter"].includes(k))return openDraft({act:k});
+  if(["gather","fight","retreat"].includes(k))return openDraft({act:k});
   if(k==="craft")return sheetCraft();
   if(k==="home"){const r=travel(homeAt(),false);if(r.err)toast=r.err;refresh();return}
   if(k==="homesleep"){const r=travel(homeAt(),true);if(r.err)toast=r.err;refresh();return}
   if(k==="fast")return sheetFast();
   if(k==="house")return sheetHouse();
   if(k==="move")return openDraft({act:"move"});
-  if(k==="hunt"||k==="rest"){exec(planOf({act:k}),{});refresh();return}
+  if(k==="hunt"||k==="rest"||k==="explore"||k==="shelter"){const q=planOf({act:k});if(q.err){toast=q.err;refresh();return}exec(q,{});refresh();return}   /* v5.17：探索、占岩穴必成功，直接做 */
   if(k==="eat")return sheetEat();
   if(k==="train")return sheetTrain();
   if(k==="exp"){const r=experiment();if(r.err)toast=r.err;refresh();return}

@@ -121,13 +121,13 @@ function useSkill(s,out){
 /* ───── 求生 ───── */
 function tick(need,why,out){
   if(S.needs[need])return;
-  S.needs[need]=true;if(need==="避難所")S.shelterAt=S.at;if(need==="火")S.fire=true;
+  S.needs[need]=true;if(need==="避難所"&&!S.shelterAt)S.shelterAt=S.at;if(need==="火")S.fire=true;
   const m=`✔ ${need}：${why}`;out&&out.lines.push(m);log(m,"good");
   checkChapter();
 }
 function checkChapter(){
   /* v5.6：第一章只要有避難所（草棚或岩穴）就能建立據點；食物、火、水不擋關，只影響身體 */
-  if(S.ch===1&&S.needs.避難所&&!S.pending&&!S.ch1Offered){
+  if(S.ch===1&&S.needs.避難所&&S.shelterAt&&S.at===S.shelterAt&&!S.pending&&!S.ch1Offered){
     S.ch1Offered=true;S.stats.ch1Day=S.day;S.pending={type:"ch2"};gainExist(3);log("你有了能落腳的地方。第一章完成。存在值 +3。","good");
   }
 }
@@ -138,7 +138,7 @@ function applyEffect(eff,out){
   if(eff.g)tick(eff.g,`「${eff.n}」`,out);
   if(has("火")||eff.f==="點火")tick("火","你弄出了火",out);
   if(has("水"))tick("水","你有了水",out),S.drank=true;
-  if(eff.f==="領域"&&has("土"))tick("避難所",`用「${eff.n||"這一招"}」把土堆成能擋風雨的牆`,out);
+  /* v5.17：技能堆的土牆不算避難所（不能建立據點）；要蓋草棚或占岩穴 */
 }
 
 /* ───── 遭遇 ───── */
@@ -152,6 +152,8 @@ function startEncounter(out,amb){
 }
 
 /* ───── 判定 ───── */
+/* 不用判定、一定成功的行動（v5.17：探索、占岩穴也是） */
+const NOJUDGE=["move","rest","hunt","sleep","explore","shelter"];
 /* intent：{act, skills:[名], obj:{t:'place'|'item'|'seen'|'enemy'|'none', n}, move, goal, craft, adv:[], dis:[], weapon} */
 function planOf(it){
   it=it||{};
@@ -196,7 +198,7 @@ function planOf(it){
   const adv=Math.min(2,(it.adv||[]).length),dis=Math.min(2,(it.dis||[]).length);
   if(adv){net+=adv;q.notes.push(`優勢（${it.adv.slice(0,2).join("、")}）+${adv}`)}
   if(dis){net-=dis;q.notes.push(`劣勢（${it.dis.slice(0,2).join("、")}）−${dis}`)}
-  const judged=!["move","rest","hunt","sleep"].includes(act),B=S.buff||{};
+  const judged=!NOJUDGE.includes(act),B=S.buff||{};
   if(judged&&B.first){net+=1;q.notes.push("睡在木屋，今天第一件事 +1");q.useFirst=1}
   if(q.key)net=Math.min(net,0);
   q.net=net;q.need=Math.max(0,1-net)+(q.approach||0);q.bigAt=q.need+1;
@@ -217,7 +219,7 @@ function planOf(it){
   if(act==="craft"&&mgOn("craft").length)q.hours=Math.max(1,Math.ceil(q.hours/2));
   const slow={explore:"眼睛",craft:"單手",combo:"單手",move:"腿"}[act];
   if(slow&&scarN(slow)){q.hours*=1+scarN(slow);q.notes.push(`${slow}的傷：時間 ×${1+scarN(slow)}`)}
-  q.judge=!["move","rest","hunt","sleep"].includes(act);
+  q.judge=!NOJUDGE.includes(act);
   return q;
 }
 const sumPick=p=>(p.hp||0)+(p.mp||0)+(p.time||0)+(p.item||0);
@@ -282,11 +284,10 @@ function doGather(q,out){
 }
 /* 探索：越強走得越遠（F～E 只找得到近的，D～C 中，B 以上遠） */
 const KIND_WORD={wild:"",village:"村落",hostile:"敵對據點",dungeon:"地城",maze:"迷宮"};
-function doExplore(q,out){
-  if(out.res==="fail"){S.hp=Math.max(1,S.hp-Math.ceil(q.unit/2));out.lines.push("繞了一圈，迷路又摔了一跤。");return}
+function doExplore(q,out){   /* v5.17：探索必成功；還有沒去過的地方就一定找到 */
   const ring=pg()<=1?0:pg()<=3?1:2;
   const left=PLACES.filter(p=>!S.places.includes(p.n)&&(p.ring||0)<=ring);
-  if(left.length&&(out.res==="big"||rand()<(mgOn("path").length?.9:.6))){
+  if(left.length){
     const w=left.find(p=>p.water&&!S.places.some(n=>placeOf(n).water));
     const np=w&&rand()<.7?w:pick(left);S.places.push(np.n);S.at=np.n;out.gain.push(`存在值+${gainExist(1)}`);
     if(np.kind==="village"&&S.rel[np.race]==null)S.rel[np.race]=rand()<.5?-1:-2;
@@ -330,15 +331,14 @@ function doCraft(q,out){
   Object.entries(r.need).forEach(([m,n])=>S.mats[m]-=n);
   out.lines.push(`做出了${r.n}。`);
   if(r.fire){S.fire=true;tick("火","你學會生火了",out);return}
-  if(r.sh){tick("避難所",`在${S.at}搭起了草棚`,out);return}
+  if(r.sh){S.shelterAt=S.at;tick("避難所",`在${S.at}搭起了草棚`,out);checkChapter();return}
   if(r.cook){addMat("熟肉",1);out.gain.push("熟肉");return}
   gainItem(r.k==="gear"?mkGear(r.n,S.lv):mkItem(r.n,r.k,S.lv),out);
   if(r.water)tick("水","有水袋就能把水帶在身上",out);
   if(out.res==="big"){addMat("石片",1);out.gain.push("石片（省下的）")}
 }
 function doShelter(q,out){
-  if(out.res==="fail"){S.hp-=q.unit;out.lines.push(`岩穴裡有東西，把你趕了出來。HP −${q.unit}`);return}
-  out.lines.push("你清空了岩穴，擋得住風雨。");tick("避難所","占用了岩穴",out);
+  out.lines.push("你清空了岩穴，擋得住風雨。");S.shelterAt=S.at;tick("避難所","占用了岩穴",out);checkChapter();
 }
 function doRest(q,out){const h=Math.ceil(hpMax()*.2);S.hp=Math.min(hpMax(),S.hp+h);out.lines.push(`休息了一下，HP +${h}。`)}
 function doMove(q,out){const to=q.it.place;if(to&&S.places.includes(to)){S.at=to;const P=placeOf(to);out.lines.push(`走到${to}${KIND_WORD[P.kind]?`（${KIND_WORD[P.kind]}）`:""}。`)}else out.lines.push("沒有移動。")}
@@ -637,6 +637,7 @@ function sleep(){count(S.stats.actions,"sleep");log("你睡了。");night(true);
 /* ───── 第二章：據點 ───── */
 const baseable=n=>{const P=placeOf(n);return !!P&&(P.kind==="wild"||(P.kind==="hostile"&&(S.cleared||[]).includes(P.n)))};
 function startCh2(here){
+  if(here&&S.shelterAt&&S.at!==S.shelterAt){log(`據點要建在你的避難所那裡（${S.shelterAt}）。先回去，或在這裡蓋草棚、占岩穴。`);S.pending=null;return}   /* v5.17 */
   if(here&&!baseable(S.at)){log(`${S.at}不能當據點（要在野外，或打下來的敵對據點）。先走到別的地方再從選單建立據點。`);S.pending=null;return}
   S.pending=null;
   if(!here){log("你決定先不定下來。（隨時可以從選單建立據點）");return}
