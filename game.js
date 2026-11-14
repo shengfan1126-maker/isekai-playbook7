@@ -7,6 +7,7 @@ const EXIST_MAX=lv=>EXIST_TBL[gIdx(lv)];
 const BP_FLOOR=[1,16,31,46,61,76,91], BP_W=[14,14,14,14,14,14,8];
 const HP_BASE=lv=>20+8*gIdx(lv);
 const MP_MAX=6, DAYS=365, WAKE=6;
+const MP_BASE=lv=>MP_MAX+2*gIdx(lv);   /* v5.27：MP 跟著等級長（F 6、E 8、D 10、C 12、B 14、A 16、S 18）；HP 照舊 20＋8×級 */
 const SKILL_PER_DAY=3, SKILL_SLOTS=9;
 const STORE_MAX={F:20,E:25,D:30,C:35,B:40,A:50,S:50};
 /* 據點升級要的點數（升到 E D C B A S）；捐物資換點數 */
@@ -42,7 +43,7 @@ const scarN=p=>S.scars.filter(x=>x===p).length;
 /* 身上魔法物品的被動效果（HP、MP 上限）不看對手等級 */
 const mgCount=t=>S&&S.eq?SLOTS.map(k=>S.eq[k]).filter(it=>it&&it.mg&&it.mg.t===t).length:0;
 const hpMax=()=>Math.max(5,Math.round(HP_BASE(S.lv)*Math.max(.2,1-.2*scarN("身體"))*(1+.2*mgCount("hp"))));
-const mpMax=()=>Math.max(1,MP_MAX-scarN("心靈")+2*mgCount("mp"));
+const mpMax=()=>Math.max(1,MP_BASE(S.lv)-scarN("心靈")+2*mgCount("mp"));
 const hpSleepCap=()=>scarN("身體")?Math.floor(hpMax()*.8):hpMax();
 const mpSleepCap=()=>scarN("心靈")?Math.max(1,mpMax()-1):mpMax();
 const placeOf=n=>PLACES.find(p=>p.n===(n||S.at));
