@@ -122,7 +122,8 @@ const atCap=s=>gIdx(s.lv)>=skillCap();
 function lvUp(s){const cap=skillCap();const i=gIdx(s.lv);if(i<cap){s.lv=GRADES[i+1];return true}return false}
 function useSkill(s,out){
   if(s.fromItem){s.fromItem.use=(s.fromItem.use||0)+1;return}
-  s.today++;s.used++;count(S.stats.skillUse,s.n);
+  s.today++;count(S.stats.skillUse,s.n);if(atCap(s))return;   /* v5.35：到上限熟練也鎖住，升級後接著算 */
+  s.used++;
   if(s.used%10===0&&lvUp(s)){const m=`【${s.n}】用了 ${s.used} 次，進化成 ${s.lv}。`;out.lines.push(m);log(m,"good")}
 }
 
@@ -415,7 +416,7 @@ function doCombo0(q,out){
 }
 /* ───── v5.2：專心鍛鍊、專心實驗（戰鬥外，不叫 AI） ───── */
 function drill(s,n,lines){
-  for(let k=0;k<n;k++){s.used++;count(S.stats.skillUse,s.n);
+  for(let k=0;k<n;k++){if(atCap(s))break;s.used++;count(S.stats.skillUse,s.n);
     if(s.used%10===0&&lvUp(s)){const m=`【${s.n}】用了 ${s.used} 次，進化成 ${s.lv}。`;lines.push(m)}}
 }
 function calmErr(){
@@ -429,9 +430,9 @@ function train(name,max){
   if(usesLeft(s)<1)return {err:`【${s.n}】今天的次數用完了`};
   if(atCap(s))return {err:`【${s.n}】${s.lv} 已經到上限：技能練到「你的等級 +1」（現在 ${GRADES[skillCap()]}）為止，你升級之後才能再練`};
   const lines=[],u0=s.used,lv0=s.lv;let h=0;
-  while(usesLeft(s)>0&&S.hour+h+1<24&&(!max||h<max)){s.today++;h++;drill(s,2,lines)}
+  while(usesLeft(s)>0&&!atCap(s)&&S.hour+h+1<24&&(!max||h<max)){s.today++;h++;drill(s,2,lines)}
   count(S.stats.actions,"train");
-  log(`[專心鍛鍊] 【${s.n}】練了 ${h} 小時，熟練 ${u0}→${s.used}${s.lv!==lv0?`，${lv0}→${s.lv}`:`（下次進化在 ${Math.ceil((s.used+1)/10)*10}）`}。${usesLeft(s)<1?"今天的次數用完了。":""}`,"act");
+  log(`[專心鍛鍊] 【${s.n}】練了 ${h} 小時，熟練 ${u0}→${s.used}${s.lv!==lv0?`，${lv0}→${s.lv}`:`（下次進化在 ${Math.ceil((s.used+1)/10)*10}）`}。${atCap(s)?"到上限了，你升級之後才能再練。":usesLeft(s)<1?"今天的次數用完了。":""}`,"act");
   lines.forEach(m=>log(m,"good"));
   advance(h);return {ok:true,h};
 }

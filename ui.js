@@ -314,7 +314,7 @@ function sheetForge(msg){
 function sheetTrain(){
   const cs=S.items.map((it,i)=>({it,i})).filter(x=>isCore(x.it));
   const box=cs.length?`<h3>魔核</h3><div class="note">照著魔核鍛鍊 1 次（${CORE_TRAIN_H} 小時），就學會它的技能，等級＝魔核等級。魔核會化掉。</div><table>`+cs.map(x=>`<tr><td>${esc(x.it.n)}（${x.it.lv}）：${esc(coreWord(x.it))}</td><td><button data-tc="${x.i}">鍛鍊學會</button></td></tr>`).join("")+`</table>`:"";
-  sheet(`<h3>專心鍛鍊</h3><div class="note">練的是<b>技能的等級</b>。一小時練一次：扣今天的一次次數，熟練 +2，熟練每到 10、20、30……進化一階。<b>最高練到「你的等級 +1」</b>（你現在 ${S.lv} 級 → 技能最高 ${GRADES[skillCap()]}）；魔核學來的技能可以比這個高，但高過上限就練不動，要等你升級。不扣 MP。練到次數用完為止。也可以直接打字：「專心鍛鍊 發火」「鍛鍊 發火 2 次」。</div><table>`+
+  sheet(`<h3>專心鍛鍊</h3><div class="note">練的是<b>技能的等級</b>。一小時練一次：扣今天的一次次數，熟練 +2，熟練每到 10、20、30……進化一階。<b>最高練到「你的等級 +1」</b>（你現在 ${S.lv} 級 → 技能最高 ${GRADES[skillCap()]}）；到上限時熟練也停住，等你升級再接著算。魔核學來的技能可以比上限高，但就練不動，要等你升級。不扣 MP。練到次數用完為止。也可以直接打字：「專心鍛鍊 發火」「鍛鍊 發火 2 次」。</div><table>`+
     S.skills.concat(S.store).map((s,i)=>`<tr><td><b>${esc(s.n)}</b>${i>=S.skills.length?"（倉庫）":""} ${s.lv}<br><span class="note">熟練 ${s.used}${atCap(s)?"｜<b>到上限了</b>（你升級之後才能再練）":`（下次進化在 ${Math.ceil((s.used+1)/10)*10}）`}｜今天剩 ${usesLeft(s)} 次</span></td><td><button data-tr="${i}" ${usesLeft(s)<1||atCap(s)?"disabled":""}>${atCap(s)?"到上限":`練 ${usesLeft(s)} 小時`}</button></td></tr>`).join("")+`</table>`+box);
   $("sbody").querySelectorAll("[data-tc]").forEach(b=>b.onclick=()=>{const r=trainCore(+b.dataset.tc);if(r.err)toast=r.err;save();closeSheet()});
   $("sbody").querySelectorAll("[data-tr]").forEach(b=>b.onclick=()=>{const r=train(S.skills.concat(S.store)[+b.dataset.tr].n);if(r.err)toast=r.err;closeSheet()});
