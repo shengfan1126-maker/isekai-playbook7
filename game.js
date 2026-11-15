@@ -182,7 +182,7 @@ function planOf(it){
   if(act==="shelter"){if(!placeOf().cave)q.err="這裡沒有能占用的岩穴";else if(!baseable(S.at))q.err=`${S.at}不能當據點（敵對據點要先打下來），岩穴占了也沒用`;q.base=0}
   if(["fight","retreat"].includes(act)&&!S.enc)q.err="現在沒有遭遇";
   if(S.enc&&["fight","retreat","combo"].includes(act)){q.eIdx=S.enc.king?7:gIdx(S.enc.lv);if(S.enc.raid)q.key=q.raid=true}
-  if(q.raid&&act==="retreat"&&S.enc&&S.raid&&S.raid.list[S.raid.i]&&S.raid.list[S.raid.i].tac)q.err="這一場已經退過一次了，這次要正面打";
+  if(q.raid&&act==="retreat")q.err="升級戰不能撤退；要走就按「放棄據點」（搬家）";
   let net=q.base;if(q.base)q.notes.push(act==="craft"?"會做的東西 +1":"日常 +1");
   const diff=Math.max(0,q.eIdx-pg());if(diff){net-=diff;q.notes.push("階層差 −"+diff)}
   if(!["combo","hunt","move","rest"].includes(act)&&sks[0]&&!q.art){const s=sks[0];
@@ -323,11 +323,7 @@ function doFight(q,out){
 }
 function doRetreat(q,out){
   const en=S.enc;
-  /* v5.31：撤退失敗不會死（最少留 1 HP）。升級戰的撤退＝戰術撤退：退回據點重整，這一場不算輸，牠衝進來，等其他場打完再回頭打（每一場一次） */
-  if(en.raid){const R=S.raid,b=R.list[R.i];
-    if(out.res==="fail"){const d=Math.max(0,Math.min(S.hp-1,Math.ceil(q.unit*1.5)));S.hp-=d;out.lines.push(`你想退回據點，被${en.n}纏住了。HP −${d}。還得跟牠打。`);return}
-    count(S.stats.actions,"tacRetreat");b.tac=1;if(!b.brk){b.brk=1;b.dir+="（你退回去重整，牠衝進來了）"}
-    R.list.splice(R.i,1);R.list.push(b);S.enc=null;out.lines.push(`戰術撤退：你退回據點裡重整。${en.n}衝進來了，等一下再回頭跟牠打（這一場不算輸）。`);nextBattle();return}
+  /* v5.31：撤退失敗不會死（最少留 1 HP）。v5.32：升級戰沒有撤退（只能放棄據點） */
   if(out.res==="fail"){const d=Math.max(0,Math.min(S.hp-1,Math.ceil(q.unit*1.5)));S.hp-=d;out.lines.push(`你逃了，但被${en.n}追上咬了一口。HP −${d}`)}
   else out.lines.push(`你甩開了${en.n}。`);
   S.enc=null;
@@ -788,10 +784,10 @@ function useCure(part){const i=S.items.findIndex(x=>x.k==="cure");if(i<0)return 
   S.items.splice(i,1);S.scars.splice(j,1);log(`喝下萬靈藥，${part}的捨身傷好了。`,"good");return {ok:true}}
 function startBoss(){if(!S.pending||S.pending.type!=="boss")return;S.pending=null;startRaid("boss")}
 /* 升級戰敗（被攻破、倒下、中途逃走）：選一個沒當過據點的地方搬家，或陣亡。沒地方可搬就只能陣亡 */
-/* v5.31：升級戰裡「放棄據點逃走」不用判定（撤退改成戰術撤退了） */
+/* v5.31：升級戰裡「放棄據點」＝搬家，不用判定 */
 function abandonBase(){const R=S.raid,en=S.enc;if(!R||!en||R.kind==="boss")return {err:"現在不能"};
   S.stats.raids.push({day:S.day,lv:R.kind,res:"retreat",won:R.won,lost:R.lost});count(S.stats.actions,"flee");
-  S.raid=null;S.enc=null;log(`你放棄據點逃走。${en.n}佔了據點。`,"bad");S.pending={type:"failchoice",why:"retreat"};return {ok:true}}
+  S.raid=null;S.enc=null;log(`你放棄據點，搬家去了。${en.n}佔了據點。`,"bad");S.pending={type:"failchoice",why:"retreat"};return {ok:true}}
 function failChoice(to){
   const boss=S.pending&&S.pending.boss;
   if(to===true)to=moveTargets()[0];      /* 舊介面／機器人：搬到第一個能去的地方 */

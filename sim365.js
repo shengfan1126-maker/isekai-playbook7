@@ -30,7 +30,6 @@ function raidBattle(){
     const p=pay(q,q.need);
     if(S.hp-p.hp*q.unit>0){W.paid++;return G.exec(q,p)}
   }
-  if(!S.raid.list[R.i].tac&&R.list.length-R.i>1){const qr=G.planOf({act:"retreat"});if(!qr.err&&qr.need<=maxPay(qr)){W.tac=(W.tac||0)+1;return G.exec(qr,pay(qr,qr.need))}}   /* v5.31：戰術撤退，晚點再打 */
   if(!lastChance&&safeHp>0){W.takeLoss++;return G.exec(q,{})}      // 這場認輸，留著資源
   if((SHESH||R.kind==="boss")&&!R.shesh){W.shesh++;return G.exec(q,{shesh:sheshPart()})}
   if(R.kind==="boss"){W.takeLoss++;return G.exec(q,{})}

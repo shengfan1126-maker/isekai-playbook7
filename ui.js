@@ -109,7 +109,7 @@ function renderPanel(){
     const ww=S.eq.武器,wf=E.king?7:gIdx(E.lv);const wwarn=ww&&gIdx(ww.lv)<Math.min(6,wf)?`<br><b>你的${esc(ww.n)}是 ${ww.lv} 級，比牠低：拿來打會壞（不能修）。</b>判定時不勾「用」就不會壞，只是少 +1。`:"";
     const rr=E.amb?"<b>你被突襲了</b>：牠已經在身邊，拿遠程武器要多付 1 項拉開距離。":E.brk?"<b>這一面被突破</b>：敵人衝到身邊，拿遠程武器要多付 1 項拉開距離。":E.r?"牠在遠處（遠程）：近戰要多付 1 項才能接近。":"";
     P.innerHTML=h+`<div class="box enc"><b>${R?(boss?"魔王戰":"升級戰")+` 第 ${S.raid.i+1}/${S.raid.list.length} 場`:"遭遇"}：${esc(E.n)}（${E.lv} 級${E.king?"・BP 99":""}）</b>　你是 ${S.lv} 級。<br><span class="note">${ee}${esc(ftx)}${rr}${rinfo}${wwarn}也可以直接在上面打字說你要怎麼做：技能、武器、材料、地形想串幾個就串幾個，大賢者會拆成步驟，新用法每一步抵 1 項代價；組合成立還會靈光一閃（三選一）。戰鬥中也能喝藥（敵人會打你一下）。</span>
-    <div class="row2"><button id="ef">${R?"迎擊":"戰鬥"}</button>${R?`<button id="ec">組合</button>`:""}${R?(S.raid.list[S.raid.i]&&S.raid.list[S.raid.i].tac?"":`<button id="er">戰術撤退</button>`):`<button id="er">撤退</button>`}${R&&!boss?`<button id="eab" class="bad">放棄據點逃走</button>`:""}${!R&&S.items.some(x=>x.k==="escape")?`<button id="esc">撒逃跑粉（不用付代價）</button>`:""}</div></div>`;
+    <div class="row2"><button id="ef">${R?"迎擊":"戰鬥"}</button>${R?`<button id="ec">組合</button>`:""}${R?"":`<button id="er">撤退</button>`}${R&&!boss?`<button id="eab" class="bad">放棄據點（搬家）</button>`:""}${!R&&S.items.some(x=>x.k==="escape")?`<button id="esc">撒逃跑粉（不用付代價）</button>`:""}</div></div>`;
     $("ef").onclick=()=>openDraft({act:"fight"});if($("ec"))$("ec").onclick=()=>openDraft({act:"combo",obj:{t:"enemy",n:S.enc.n}});if($("er"))$("er").onclick=()=>openDraft({act:"retreat"});if($("eab"))$("eab").onclick=()=>{const r=abandonBase();if(r.err)toast=r.err;refresh()};if($("esc"))$("esc").onclick=()=>{const r=useEscape();if(r.err)toast=r.err;refresh()};
     return}
   if(!draft&&canReroll()){
