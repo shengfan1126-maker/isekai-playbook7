@@ -5,9 +5,9 @@ const gIdx=g=>Math.max(0,GRADES.indexOf(g||"F"));
 const EXIST_TBL=[10,40,90,150,220,300,400];
 const EXIST_MAX=lv=>EXIST_TBL[gIdx(lv)];
 const BP_FLOOR=[1,16,31,46,61,76,91], BP_W=[14,14,14,14,14,14,8];
-const HP_BASE=lv=>20+8*gIdx(lv);
+const HP_BASE=lv=>25+8*gIdx(lv);   /* v5.31：基礎 HP 20 → 25（F 25、E 33、D 41、C 49、B 57、A 65、S 73） */
 const MP_MAX=6, DAYS=365, WAKE=6;
-const MP_BASE=lv=>MP_MAX+2*gIdx(lv);   /* v5.27：MP 跟著等級長（F 6、E 8、D 10、C 12、B 14、A 16、S 18）；HP 照舊 20＋8×級 */
+const MP_BASE=lv=>MP_MAX+2+2*gIdx(lv);   /* v5.31：基礎 MP 6 → 8（F 8、E 10……S 20） */   /* v5.27：MP 跟著等級長（F 6、E 8、D 10、C 12、B 14、A 16、S 18）；HP 照舊 20＋8×級 */
 const SKILL_PER_DAY=3, SKILL_SLOTS=9;
 const STORE_MAX={F:20,E:25,D:30,C:35,B:40,A:50,S:50};
 /* 據點升級要的點數（升到 E D C B A S）；捐物資換點數 */
@@ -57,7 +57,7 @@ const addMat=(m,n)=>{if(n>0)S.mats[m]=(S.mats[m]||0)+n};
 const hasItem=k=>S.items.some(i=>i.k===k);
 const hasWeapon=()=>!!(S.eq&&S.eq.武器);
 /* v5.28：挨一下扣多少看「對手的等級」：同級挨 4 下倒（對手那級 HP 的 1/4）；比你低的打你比較痛不起來，比你高的更痛。沒有對手時照自己的等級 */
-const foeLvNow=()=>S.enc?(S.enc.king?"S":S.enc.lv):S.lv;
+const foeLvNow=()=>S.enc?(S.enc.raid&&S.raid?(S.raid.kind==="boss"?"S":S.raid.kind):S.enc.king?"S":S.enc.lv):S.lv;   /* v5.31：升級戰挨打照要升到的那一級算 */
 const hpUnit=(key,lv)=>Math.max(1,Math.ceil(HP_BASE(lv||foeLvNow())/4*(key&&!(S.eq&&mgOn("fort").length)?1.5:1)*(S.eq?dmgMult():1)));
 const nestIdx=()=>S.nest==null?-1:gIdx(S.nest);
 const bagMax=()=>Infinity;   /* v5.15：異世界人專屬，背包沒有上限 */
@@ -182,7 +182,7 @@ function planOf(it){
   if(act==="shelter"){if(!placeOf().cave)q.err="這裡沒有能占用的岩穴";else if(!baseable(S.at))q.err=`${S.at}不能當據點（敵對據點要先打下來），岩穴占了也沒用`;q.base=0}
   if(["fight","retreat"].includes(act)&&!S.enc)q.err="現在沒有遭遇";
   if(S.enc&&["fight","retreat","combo"].includes(act)){q.eIdx=S.enc.king?7:gIdx(S.enc.lv);if(S.enc.raid)q.key=q.raid=true}
-  if(q.raid&&act==="retreat"&&S.raid&&S.raid.kind==="boss")q.err="魔王戰逃不掉";
+  if(q.raid&&act==="retreat"&&S.enc&&S.raid&&S.raid.list[S.raid.i]&&S.raid.list[S.raid.i].tac)q.err="這一場已經退過一次了，這次要正面打";
   let net=q.base;if(q.base)q.notes.push(act==="craft"?"會做的東西 +1":"日常 +1");
   const diff=Math.max(0,q.eIdx-pg());if(diff){net-=diff;q.notes.push("階層差 −"+diff)}
   if(!["combo","hunt","move","rest"].includes(act)&&sks[0]&&!q.art){const s=sks[0];
@@ -323,10 +323,12 @@ function doFight(q,out){
 }
 function doRetreat(q,out){
   const en=S.enc;
-  if(en.raid){if(out.res==="fail"){const d=Math.min(S.hp-1,Math.ceil(q.unit*1.5));S.hp-=d;out.lines.push(`你逃了，但被${en.n}追上。HP −${d}`)}
-    S.stats.raids.push({day:S.day,lv:S.raid.kind,res:"retreat",won:S.raid.won,lost:S.raid.lost});count(S.stats.actions,"flee");
-    S.raid=null;S.enc=null;out.lines.push(`你放棄據點逃走。${en.n}佔了據點。`);S.pending={type:"failchoice",why:"retreat"};return}
-  if(out.res==="fail"){const d=Math.ceil(q.unit*1.5);S.hp-=d;out.lines.push(`你逃了，但被${en.n}追上咬了一口。HP −${d}`)}
+  /* v5.31：撤退失敗不會死（最少留 1 HP）。升級戰的撤退＝戰術撤退：退回據點重整，這一場不算輸，牠衝進來，等其他場打完再回頭打（每一場一次） */
+  if(en.raid){const R=S.raid,b=R.list[R.i];
+    if(out.res==="fail"){const d=Math.max(0,Math.min(S.hp-1,Math.ceil(q.unit*1.5)));S.hp-=d;out.lines.push(`你想退回據點，被${en.n}纏住了。HP −${d}。還得跟牠打。`);return}
+    count(S.stats.actions,"tacRetreat");b.tac=1;if(!b.brk){b.brk=1;b.dir+="（你退回去重整，牠衝進來了）"}
+    R.list.splice(R.i,1);R.list.push(b);S.enc=null;out.lines.push(`戰術撤退：你退回據點裡重整。${en.n}衝進來了，等一下再回頭跟牠打（這一場不算輸）。`);nextBattle();return}
+  if(out.res==="fail"){const d=Math.max(0,Math.min(S.hp-1,Math.ceil(q.unit*1.5)));S.hp-=d;out.lines.push(`你逃了，但被${en.n}追上咬了一口。HP −${d}`)}
   else out.lines.push(`你甩開了${en.n}。`);
   S.enc=null;
 }
@@ -786,6 +788,10 @@ function useCure(part){const i=S.items.findIndex(x=>x.k==="cure");if(i<0)return 
   S.items.splice(i,1);S.scars.splice(j,1);log(`喝下萬靈藥，${part}的捨身傷好了。`,"good");return {ok:true}}
 function startBoss(){if(!S.pending||S.pending.type!=="boss")return;S.pending=null;startRaid("boss")}
 /* 升級戰敗（被攻破、倒下、中途逃走）：選一個沒當過據點的地方搬家，或陣亡。沒地方可搬就只能陣亡 */
+/* v5.31：升級戰裡「放棄據點逃走」不用判定（撤退改成戰術撤退了） */
+function abandonBase(){const R=S.raid,en=S.enc;if(!R||!en||R.kind==="boss")return {err:"現在不能"};
+  S.stats.raids.push({day:S.day,lv:R.kind,res:"retreat",won:R.won,lost:R.lost});count(S.stats.actions,"flee");
+  S.raid=null;S.enc=null;log(`你放棄據點逃走。${en.n}佔了據點。`,"bad");S.pending={type:"failchoice",why:"retreat"};return {ok:true}}
 function failChoice(to){
   const boss=S.pending&&S.pending.boss;
   if(to===true)to=moveTargets()[0];      /* 舊介面／機器人：搬到第一個能去的地方 */
