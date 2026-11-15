@@ -117,7 +117,9 @@ function learnSkill(t,lv){
 /* v5.23：學過的技能（整合、捐、賣、忘掉之後也算），實驗、靈光一閃不會再出 */
 function markHad(n){S.had=S.had||[];if(!S.had.includes(n))S.had.push(n)}
 function hadSkill(n){return (S.had||[]).includes(n)}
-function lvUp(s){const cap=Math.min(6,pg()+1);const i=gIdx(s.lv);if(i<cap){s.lv=GRADES[i+1];return true}return false}
+const skillCap=()=>Math.min(6,pg()+1);   /* 技能靠熟練進化，最高到「你的等級 +1」 */
+const atCap=s=>gIdx(s.lv)>=skillCap();
+function lvUp(s){const cap=skillCap();const i=gIdx(s.lv);if(i<cap){s.lv=GRADES[i+1];return true}return false}
 function useSkill(s,out){
   if(s.fromItem){s.fromItem.use=(s.fromItem.use||0)+1;return}
   s.today++;s.used++;count(S.stats.skillUse,s.n);
@@ -425,6 +427,7 @@ function train(name,max){
   const e=calmErr();if(e)return {err:e};
   const s=S.skills.concat(S.store).find(x=>x.n===name);if(!s)return {err:`技能表和倉庫裡都沒有【${name}】`};
   if(usesLeft(s)<1)return {err:`【${s.n}】今天的次數用完了`};
+  if(atCap(s))return {err:`【${s.n}】${s.lv} 已經到上限：技能練到「你的等級 +1」（現在 ${GRADES[skillCap()]}）為止，你升級之後才能再練`};
   const lines=[],u0=s.used,lv0=s.lv;let h=0;
   while(usesLeft(s)>0&&S.hour+h+1<24&&(!max||h<max)){s.today++;h++;drill(s,2,lines)}
   count(S.stats.actions,"train");
