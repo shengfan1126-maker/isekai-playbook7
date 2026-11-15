@@ -59,8 +59,8 @@ function renderMenu(){
   if(hasItem("potion"))B.push(["potion","用藥"]);
   if(S.items.some(i=>i.k==="cure")&&S.scars.length)B.push(["cure","治傷（萬靈藥）"]);
   const potionOk=hasItem("potion")&&!draft&&!busy&&!S.pending;   /* 戰鬥中也能喝，敵人會打你一下 */
-  B.push(["stats","統計"],["ooc","OOC 更正"]);
-  const info=["skills","frags","bag","recipes","stats","ooc","base","cure","village"];
+  B.push(["help","教學"],["stats","統計"],["ooc","OOC 更正"]);
+  const info=["help","skills","frags","bag","recipes","stats","ooc","base","cure","village"];
   m.innerHTML=B.map(([k,t,d])=>`<button data-k="${k}" ${(d||(lock&&!info.includes(k)&&!(k==="potion"&&potionOk)))?"disabled":""}>${esc(t)}</button>`).join("");
   m.querySelectorAll("button").forEach(x=>x.onclick=()=>menuClick(x.dataset.k));
 }
@@ -259,7 +259,7 @@ function menuClick(k){
   if(k==="village")return sheetVillage();
   if(k==="tele"){const r=teleport();if(r.err)toast=r.err;refresh();return}
   if(k==="cure")return sheetCure();
-  ({skills:sheetSkills,frags:sheetFrags,bag:sheetBag,recipes:sheetRecipes,stats:sheetStats,ooc:sheetOoc,trade:sheetTrade,base:sheetBase}[k]||(()=>{}))();
+  ({help:sheetHelp,skills:sheetSkills,frags:sheetFrags,bag:sheetBag,recipes:sheetRecipes,stats:sheetStats,ooc:sheetOoc,trade:sheetTrade,base:sheetBase}[k]||(()=>{}))();
 }
 /* v5.12：每一頁上下各一個「關閉」；手機的「上一頁」只會關掉這一頁，不會離開遊戲 */
 function sheetHist(){try{if(!(history.state&&history.state.sh))history.pushState({sh:1},"")}catch(e){}}
@@ -456,6 +456,8 @@ function exportText(){
    `碎片：${S.frags.length}\n材料：${MATS.filter(m=>S.mats[m]).map(m=>m+"×"+S.mats[m]).join("、")}　物品：${S.items.map(i=>i.n).join("、")}　裝備：${SLOTS.filter(k=>S.eq[k]).map(k=>k+"="+S.eq[k].n).join("、")}　金幣 ${S.gold}\n`+
    `統計：${JSON.stringify(S.stats)}\n紀錄：\n`+S.log.map(l=>`第${l.day}天 ${String(l.hour).padStart(2,"0")}:00 ${l.t}`).join("\n");
 }
+/* v5.33：新手教學（固定頁面） */
+function sheetHelp(){sheet(`<h3>教學</h3><div class="note">隨時都能從右上角「教學」或選單「教學」打開。</div>`+TUTORIAL.map(([t,h],i)=>`<details class="tut"${i<2?" open":""}><summary>${t}</summary><div class="tutb">${h}</div></details>`).join(""))}
 function sheetStats(){
   const st=S.stats,row=o=>Object.entries(o).map(([k,v])=>k+" "+v).join("，")||"—";
   sheet(`<h3>統計</h3><p>第一章完成：${st.ch1Day?`第 ${st.ch1Day} 天`:"還沒"}</p><p>行動：${row(st.actions)}</p><p>技能使用：${row(st.skillUse)}</p>
@@ -573,6 +575,7 @@ function initSettings(){
     try{await gemModels(true)}catch(e){snoteSet("抓不到："+(e.message||e),1)}b.disabled=false;b.textContent="重新抓 Gemini 模型名單";provUI()};
   $("refree").onclick=async()=>{const b=$("refree");b.disabled=true;b.textContent="抓取中…";
     try{await cachedList("free",true);ls.s("mowu_bad","{}")}catch(e){snoteSet("抓不到："+(e.message||e),1)}b.disabled=false;b.textContent="重新抓免費模型名單";modeUI()};
+  if($("bhelp"))$("bhelp").onclick=sheetHelp;
   $("bset").onclick=()=>{modeUI();provUI();snoteSet("");$("setsheet").classList.add("on");sheetHist()};
   if($("setdone0"))$("setdone0").onclick=()=>closeSet();
   $("setdone").onclick=closeSet;
